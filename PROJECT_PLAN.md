@@ -8,6 +8,8 @@
 
 项目将 memory 当作被测变量，而不是把某个 Agent framework 当作项目本身。第一阶段使用 framework-independent experimental harness，后续再接入 Letta 或其他系统进行扩展验证。
 
+DSH（DeepSeek Harness）在本项目中被定义为 **后续可替换的实验底座与 system-level baseline**，而不是第一阶段唯一的实现。DSH 的官方架构是“Everything is a Plugin”：Agent loop、model、tools、skills、sessions、filesystem 和 UI 等能力由插件组合。这个架构适合做组件跟踪和运行轨迹分析，但也意味着必须锁定版本、配置和 plugin surface，才能避免框架本身成为混杂因素。
+
 第一阶段的更准确名称是 **Cross-Session Memory Isolation Lab**，研究：
 
 > How does explicit cross-session experience memory alter agent behavior when within-session working memory and harness state are held constant?
@@ -141,7 +143,112 @@ Agent State
 
 API provider、protocol adapter 和 model 是三个需要分别记录的变量。同一个模型通过不同 provider 或 protocol 使用时，也应视为不同的实验配置。
 
-### 3.6 模型选择 Pilot
+### 3.7 DSH 运行环境与版本基线
+
+截至 **2026-08-18**，已核对官方仓库与 release 页面：
+
+| 项目 | 当前记录 |
+|---|---|
+| 官方仓库 | `https://github.com/deepseek-ai/deepseek-harness` |
+| 最新可见 release | `v0.1.0-rc.7`，pre-release |
+| release commit | `99f6f02` |
+| 官方状态 | Developer preview；官方提示可能存在 compatibility-breaking changes |
+| 源码分支包版本 | `0.1.0-rc.7` |
+| Node.js | `^22.19.0` 或 `>=24.0.0` |
+| pnpm | `11.7.0`，由 Corepack 管理 |
+| Git | `2.26+` |
+
+官方提供三种相关运行路径：
+
+1. Web UI：`npx @deepseek-ai/dsh web`，默认监听 `http://127.0.0.1:3080`；
+2. 源码运行：clone 官方仓库后执行 `pnpm install`、`pnpm run build`、`pnpm dsh web`；
+3. Python SDK：安装与运行时匹配的 `deepseek-harness-sdk`，通过 `DeepSeekHarness` 启动隔离 workspace 和 session。
+
+当前项目位于 Windows，但官方 Python SDK 的 `jsonrpc-agent` 示例要求 POSIX terminal substrate，并明确说明该 composition 不支持 Windows agents。因此：
+
+- framework-independent benchmark 和 mock harness 继续在当前 Windows 项目中开发；
+- DSH source/SDK 集成优先放在 WSL2 或 Linux container 中；
+- 原生 Windows 的 Web UI 只能作为单独 smoke test，不能直接当作主实验运行环境；
+- 任何 DSH 结果必须记录运行平台、Node/pnpm/Python 版本、DSH tag/commit、Cordis patch 和 session composition。
+
+建议的 DSH 实验配置记录：
+
+```json
+{
+  "dsh_repo": "deepseek-ai/deepseek-harness",
+  "dsh_version": "v0.1.0-rc.7",
+  "dsh_commit": "99f6f02",
+  "runtime_mode": "source|npm|python-sdk",
+  "platform": "linux-wsl2|linux-container|windows-smoke-test",
+  "node_version": "...",
+  "pnpm_version": "...",
+  "python_version": "...",
+  "cordis_patch": "...",
+  "session_composition": "minimal-fixed-v1"
+}
+```
+
+在官方发布 stable version 之前，不能在结果中只写“使用 DSH”；必须写明上面的精确版本和运行路径。
+
+版本与运行信息来源：官方 [DSH 仓库](https://github.com/deepseek-ai/deepseek-harness)、[release 页面](https://github.com/deepseek-ai/deepseek-harness/releases)、[开发环境指南](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/development.md)、[Python SDK 指南](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/python-sdk.md) 和 [第一个 plugin 指南](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/index.md)。
+
+### 3.8 DSH Plugin 跟踪计划
+
+Plugin 研究采用“先记录、后引入”的顺序。插件可以改变工具集合、服务依赖、prompt/context 注入、Session 持久化和 lifecycle，因此一个 memory plugin 不能直接等同于单一 memory mechanism。
+
+#### Plugin track P0：官方最小基线
+
+- 使用固定 DSH tag/commit 和固定 Cordis composition；
+- 记录默认启用的 plugins、tools、skills、compaction 和 persistence；
+- 禁止 memory plugin 进入 E1 的主因果实验；
+- 先用 host-managed memory controller 复现 B0–B4。
+
+#### Plugin track P1：本地诊断插件
+
+按照官方 plugin 形式建立最小 local plugin：TypeScript module 导出 `apply(ctx)`，必要时通过 `inject` 声明 `tools` 或 `llm` 等依赖；使用 `cordis.yml` overlay 加载，不连接真实 memory backend。
+
+P1 只验证：
+
+- plugin 是否能加载和卸载；
+- event listener、tool registration 和 cleanup 是否可追踪；
+- plugin 是否改变 system prompt、tool schema、Session log 或 workspace；
+- plugin unload 后是否留下 persistent state。
+
+#### Plugin track P2：插件表面与污染审计
+
+对每个候选插件建立记录，不只记录“能否运行”，还要记录它改变了什么：
+
+| 字段 | 记录内容 |
+|---|---|
+| identity | plugin name、repository、owner、license |
+| source | tag/commit、发布日期、DSH compatibility |
+| loading | `cordis.yml`、package path、启动参数 |
+| dependencies | `inject` services、runtime packages、external services |
+| model surface | 新增 tools、tool schema、system prompt/context 注入 |
+| memory surface | write/retrieve/update/forget hook、payload format、retrieval timing |
+| persistence | session store、filesystem、database、cache、namespace |
+| lifecycle | load/unload、cleanup、resume/fork/compaction interaction |
+| reproducibility | API key、网络服务、随机性、版本锁定、失败日志 |
+
+#### Plugin track P3：Memory plugin system baseline
+
+E1 主线稳定后，选择少量有明确源码和版本的 memory plugin 作为 **system-level baseline**。每个 plugin 单独建立 condition，例如 `DSH-MemoryPlugin-X`，并与：
+
+```text
+DSH-Core-Minimal
+DSH-Local-Diagnostic
+DSH-MemoryPlugin-X
+```
+
+保持相同 model、task order、clean workspace、session boundary 和 verifier。报告只能先解释为“完整 plugin system 的效果”，不能直接声称某个 storage 或 retrieval mechanism 具有独立因果效果。
+
+#### Plugin track P4：外部插件复现与扩展
+
+只有在 P3 能稳定复现后，才比较多个 community plugins、不同 memory backend 或 agent-facing memory tools。此时进入 E3/E4 的 retrieval/control 问题，并单独记录 tool-surface confound、prompt-length effect 和 agent 是否真正调用 memory tools。
+
+插件跟踪的最低原则是：**不直接修改官方 DSH 源码来“方便接入”；优先使用官方 plugin seam、local overlay 和 adapter。** 每次插件实验都保存 plugin source ref、DSH source ref、配置文件、工具列表、注入文本、持久化目录和完整 trace。
+
+### 3.9 模型选择 Pilot
 
 主实验不先比较“哪个 API 最适合 memory”，而先做一个小型 model selection pilot：选择 2 个实际可负担且 tool-use 稳定的模型，各运行约 8–12 个 prototype tasks，只比较 `B0 No Cross-Session Memory` 与 `Oracle Memory`。
 
@@ -381,8 +488,11 @@ E5 必须建立在 E1–E4 已经有稳定 verifier、trace 和 failure taxonomy
 - [ ] E3：固定 memory content，逐步比较 Oracle、deterministic 和实际 lexical/semantic retrieval；
 - [ ] E4：开放 memory tools，研究 Agent 的 retrieve/write/update/forget control policy；
 - [ ] E5：在前四阶段稳定后，再研究 LLM controller、bandit 或 RL memory policy；
-- [ ] 先锁定 benchmark 与 baseline，再评估 Letta integration；
-- [ ] 记录外部框架版本、配置和 commit hash；
+- [ ] 完成 DSH P0 官方最小基线与运行环境记录；
+- [ ] 完成 DSH P1 本地诊断插件，验证 plugin load/unload 和 lifecycle cleanup；
+- [ ] 完成 DSH P2 插件表面与污染审计表；
+- [ ] E1 稳定后，再评估少量 DSH memory plugin 作为 system-level baseline（P3）；
+- [ ] 记录外部框架、DSH 和 plugin 的版本、配置、commit hash 与运行平台；
 - [ ] 将框架 adapter 与核心 benchmark 解耦；
 - [ ] 再考虑 A-MEM、Hermes 或 OpenClaw 作为参考/对照；
 - [ ] 不让框架 API 行为替代对 memory failure mode 的定义。
