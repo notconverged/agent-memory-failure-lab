@@ -1,0 +1,33 @@
+# Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Environments and local configuration
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# Notebooks and editor files
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# Logs and local outputs
+*.log
+results/*.tmp
+results/runs/
+
+# Data and model artifacts; keep only deliberately curated small fixtures
+data/raw/
+models/
+outputs/
+*.ckpt
+*.pt
+*.pth
