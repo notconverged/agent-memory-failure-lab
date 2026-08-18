@@ -85,7 +85,7 @@
 - [x] 明确研究问题、首轮 baseline 和参考项目边界；
 - [x] 创建项目实施计划；
 - [x] 建立项目级 agent 与代码规范；
-- [ ] 初始化 Git repository 与 GitHub remote；
+- [x] 初始化 Git repository 与 GitHub remote；
 - [ ] 记录 Python environment 与实际依赖版本。
 
 ### Phase 1：最小实验 harness
