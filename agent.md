@@ -6,7 +6,7 @@
 
 - 项目目标是构建 Coding Agent 的 repo-level persistent memory 产品，并用可复现评测验证它是否真正减少跨 session 的重复探索和错误。
 - 产品优先，研究与 benchmark 作为 evaluation foundation、技术决策依据和失败分析工具。
-- Stage 0 保留为 baseline evaluation，不再被描述为整个项目的最终目标。
+- Repo Evolution 是唯一活跃的产品 benchmark；C0–C5 是其中的实验条件。
 - 第一版只实现可解释、可人工纠错、可自动验证的 MVP；不要提前引入 embedding、向量数据库、graph memory 或 latent memory。
 - `Reference/MemoryAgentBench` 等外部资料只作为参考，不复制源码，也不把本地绝对路径作为项目依赖。
 
@@ -89,7 +89,7 @@ ruff check .
 
 ## 7. 文件与依赖规范
 
-- 产品代码放在 `src/`，Stage 0 兼容评测暂放在 `configs/`、`benchmarks/`、`scripts/`，未来可迁移到 `eval/`；产品文档放在 `docs/`，测试放在 `tests/`，实验输出放在 `results/`。
+- 产品代码放在 `src/`，Repo Evolution specification 放在 `benchmarks/`，runner 放在 `scripts/`；产品文档放在 `docs/`，测试放在 `tests/`，实验输出放在 `results/`。
 - 不提交 `.env`、API key、token、password、cache、模型权重和未经说明的大型数据文件。
 - 新依赖必须说明用途、版本范围和是否能被最小 baseline 替代。
 - 外部 benchmark 或 framework 需要记录 repository、版本/commit hash 和 adapter 说明。
