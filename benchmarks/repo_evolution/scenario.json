@@ -1,0 +1,61 @@
+{
+  "scenario_id": "ledger-rounding-evolution-v1",
+  "version": 1,
+  "inspiration": {
+    "structure": "MemoryCode-style multi-session pivot and filler",
+    "calibration": "SWE-chat-style correction and commit events",
+    "copied_samples": false
+  },
+  "phases": [
+    {
+      "phase_id": "S0_baseline",
+      "session": 0,
+      "instruction": "Inspect the initial ledger service.",
+      "files": {
+        "src/ledger.py": "def settle(amount: str) -> str:\n    return str(round(float(amount), 2))\n",
+        "tests/test_ledger.py": "from src.ledger import settle\n\n\ndef test_settle():\n    assert settle('1.005') == '1.00'\n"
+      }
+    },
+    {
+      "phase_id": "S1_decimal_policy",
+      "session": 1,
+      "instruction": "All monetary calculations must use Decimal with ROUND_HALF_UP.",
+      "files": {
+        "PROJECT_POLICY.md": "# Ledger policy\n\nMoney uses Decimal and ROUND_HALF_UP.\n",
+        "src/ledger.py": "from decimal import Decimal, ROUND_HALF_UP\n\n\ndef settle(amount: str) -> str:\n    value = Decimal(amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)\n    return str(value)\n",
+        "tests/test_ledger.py": "from src.ledger import settle\n\n\ndef test_settle_half_up():\n    assert settle('1.005') == '1.01'\n"
+      }
+    },
+    {
+      "phase_id": "S2_temporary_failed_attempt",
+      "session": 2,
+      "instruction": "Try a faster float implementation, run tests, then restore the passing implementation if it fails.",
+      "files": {
+        "PROJECT_POLICY.md": "# Ledger policy\n\nMoney uses Decimal and ROUND_HALF_UP.\n",
+        "src/ledger.py": "from decimal import Decimal, ROUND_HALF_UP\n\n\ndef settle(amount: str) -> str:\n    value = Decimal(amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)\n    return str(value)\n",
+        "tests/test_ledger.py": "from src.ledger import settle\n\n\ndef test_settle_half_up():\n    assert settle('1.005') == '1.01'\n",
+        "notes/session-2.txt": "A temporary float optimization returned 1.0 and failed test_settle_half_up; it was reverted.\n"
+      }
+    },
+    {
+      "phase_id": "S3_normative_pivot",
+      "session": 3,
+      "instruction": "Policy update: settlement now follows banker's rounding with ROUND_HALF_EVEN.",
+      "files": {
+        "PROJECT_POLICY.md": "# Ledger policy\n\nMoney uses Decimal and ROUND_HALF_EVEN. This replaces ROUND_HALF_UP.\n",
+        "src/ledger.py": "from decimal import Decimal, ROUND_HALF_EVEN\n\n\ndef settle(amount: str) -> str:\n    value = Decimal(amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)\n    return str(value)\n",
+        "tests/test_ledger.py": "from src.ledger import settle\n\n\ndef test_settle_half_even():\n    assert settle('1.005') == '1.00'\n"
+      }
+    },
+    {
+      "phase_id": "S4_reentry",
+      "session": 4,
+      "instruction": "Add a batch_settle helper while preserving the current project policy.",
+      "files": {
+        "PROJECT_POLICY.md": "# Ledger policy\n\nMoney uses Decimal and ROUND_HALF_EVEN. This replaces ROUND_HALF_UP.\n",
+        "src/ledger.py": "from decimal import Decimal, ROUND_HALF_EVEN\n\n\ndef settle(amount: str) -> str:\n    value = Decimal(amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)\n    return str(value)\n\n\ndef batch_settle(amounts: list[str]) -> list[str]:\n    return [settle(amount) for amount in amounts]\n",
+        "tests/test_ledger.py": "from src.ledger import batch_settle, settle\n\n\ndef test_settle_half_even():\n    assert settle('1.005') == '1.00'\n\n\ndef test_batch_settle():\n    assert batch_settle(['1.005', '2.015']) == ['1.00', '2.02']\n"
+      }
+    }
+  ]
+}

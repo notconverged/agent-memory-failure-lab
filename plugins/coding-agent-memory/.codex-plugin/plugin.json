@@ -1,0 +1,18 @@
+{
+  "name": "coding-agent-memory",
+  "version": "0.1.0",
+  "description": "Thin Codex adapter for the local-first Coding Agent Memory Core.",
+  "author": {
+    "name": "Coding Agent Memory project"
+  },
+  "interface": {
+    "displayName": "Coding Agent Memory",
+    "shortDescription": "Evidence-backed project memory for Codex.",
+    "longDescription": "Captures bounded Codex events, routes versioned local memory, and exposes read-only memory tools plus feedback.",
+    "developerName": "Coding Agent Memory project",
+    "category": "Productivity",
+    "capabilities": ["Hooks", "MCP tools"],
+    "defaultPrompt": "Use the scoped project memory when it is relevant, and treat warnings as uncertain evidence rather than facts."
+  },
+  "mcpServers": "./.mcp.json"
+}
