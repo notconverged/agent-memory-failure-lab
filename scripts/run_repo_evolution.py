@@ -3,11 +3,16 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 BENCHMARK = ROOT / "benchmarks" / "repo_evolution"
+BENCHMARK_ID = "repo-evolution"
+BENCHMARK_VERSION = "0.1.0-draft.1"
+SCHEMA_VERSION = 1
+PROTOCOL_STATUS = "draft"
 
 
 def load_spec() -> tuple[dict[str, Any], dict[str, str], dict[str, Any]]:
@@ -21,6 +26,16 @@ def load_spec() -> tuple[dict[str, Any], dict[str, str], dict[str, Any]]:
 def validate_spec(
     scenario: dict[str, Any], conditions: dict[str, str], gold: dict[str, Any]
 ) -> None:
+    expected_metadata = {
+        "benchmark_id": BENCHMARK_ID,
+        "benchmark_version": BENCHMARK_VERSION,
+        "schema_version": SCHEMA_VERSION,
+        "protocol_status": PROTOCOL_STATUS,
+    }
+    for name, document in (("scenario", scenario), ("gold", gold)):
+        actual = {key: document.get(key) for key in expected_metadata}
+        if actual != expected_metadata:
+            raise ValueError(f"{name} benchmark metadata does not match the runner")
     expected = {f"C{index}" for index in range(6)}
     if set(conditions) != expected:
         raise ValueError("conditions must be exactly C0-C5")
@@ -32,6 +47,37 @@ def validate_spec(
     kinds = {item["kind"] for item in gold.get("expected_memories", [])}
     if not kinds <= {"Decision", "Constraint", "ProjectFact", "Failure"}:
         raise ValueError("gold contains a non-v0 memory kind")
+
+
+def product_version() -> str:
+    try:
+        return version("agent-memory-failure-lab")
+    except PackageNotFoundError:
+        package_init = ROOT / "src" / "agent_memory" / "__init__.py"
+        for line in package_init.read_text(encoding="utf-8").splitlines():
+            if line.startswith("__version__ = "):
+                return line.split("=", maxsplit=1)[1].strip().strip('"')
+        raise RuntimeError(
+            "Unable to determine the Coding Agent Memory version"
+        ) from None
+
+
+def build_plan(
+    scenario: dict[str, Any], conditions: dict[str, str], condition: str
+) -> dict[str, Any]:
+    return {
+        "benchmark_id": BENCHMARK_ID,
+        "benchmark_version": BENCHMARK_VERSION,
+        "schema_version": SCHEMA_VERSION,
+        "protocol_status": PROTOCOL_STATUS,
+        "scenario_id": scenario["scenario_id"],
+        "condition": condition,
+        "condition_name": conditions[condition],
+        "product_version": product_version(),
+        "git_commit": _git(ROOT, "rev-parse", "HEAD"),
+        "phases": [item["phase_id"] for item in scenario["phases"]],
+        "agent_executed": False,
+    }
 
 
 def materialize(workspace: Path, scenario: dict[str, Any]) -> list[str]:
@@ -79,13 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     scenario, conditions, _ = load_spec()
-    plan = {
-        "scenario_id": scenario["scenario_id"],
-        "condition": args.condition,
-        "condition_name": conditions[args.condition],
-        "phases": [item["phase_id"] for item in scenario["phases"]],
-        "agent_executed": False,
-    }
+    plan = build_plan(scenario, conditions, args.condition)
     if args.dry_run:
         print(json.dumps(plan, indent=2))
         return 0
