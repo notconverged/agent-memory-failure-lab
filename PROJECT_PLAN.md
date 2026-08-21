@@ -1,36 +1,60 @@
-# Agent Memory Failure Lab 项目实施计划
+# Coding Agent Memory 项目实施计划
 
 ## 1. 项目定位
 
-本项目研究 Agent memory 的正向迁移（positive transfer）与负向迁移（negative transfer）。核心问题是：
+本项目构建一个面向 Coding Agent 的本地优先（local-first）持久记忆层，帮助 Agent 在不同 session 之间恢复少量真正有价值的项目上下文，减少重复探索、重复犯错和上下文重建成本。
 
-> When does memory help an agent, and when does memory hurt it?
+产品核心假设是：
 
-项目将 memory 当作被测变量，而不是把某个 Agent framework 当作项目本身。第一阶段使用 framework-independent experimental harness，后续再接入 Letta 或其他系统进行扩展验证。
+> Coding Agent 不需要记住全部聊天历史，而应该持久化少量、可解释、可纠错并且带有来源的 project state。
 
-DSH（DeepSeek Harness）在本项目中被定义为 **后续可替换的实验底座与 system-level baseline**，而不是第一阶段唯一的实现。DSH 的官方架构是“Everything is a Plugin”：Agent loop、model、tools、skills、sessions、filesystem 和 UI 等能力由插件组合。这个架构适合做组件跟踪和运行轨迹分析，但也意味着必须锁定版本、配置和 plugin surface，才能避免框架本身成为混杂因素。
+目标用户是长期使用 Claude Code、Codex、DSH 或类似 Coding Agent 的个人开发者。当前产品优先解决 repo-level memory，而不是通用个人助理记忆。
 
-第一阶段的更准确名称是 **Cross-Session Memory Isolation Lab**，研究：
+产品需要支持的基本闭环是：
 
-> How does explicit cross-session experience memory alter agent behavior when within-session working memory and harness state are held constant?
+```text
+Coding Session
+    → candidate memory
+    → structured memory item
+    → repo-scoped local store
+    → task-aware retrieval
+    → context injection
+    → user/agent feedback
+```
 
-这里的 `Session`、当前工具结果和任务内 working memory 不是要删除的 memory，而是所有实验条件共同拥有的 measurement infrastructure。真正的 treatment variable 是跨 episode 的显式 experience memory。
+DSH 在本项目中是一个可替换的 Agent adapter 与 system-level evaluation baseline，不是产品本身。项目的核心资产是 memory lifecycle、用户可控性、可靠性和 evaluation，而不是绑定某个 harness API。
 
-## 2. 研究假设
+之前建立的 Stage 0 不删除，而重新定位为：
 
-### H1：有用经验可以提升后续任务表现
+> **Baseline Evaluation Foundation：用于证明跨 session memory 是否能改变 Coding Agent 行为，并为后续产品迭代提供稳定对照。**
 
-在后续任务需要复用前序反馈时，`Append-only Memory` 的 Task Success Rate 应高于 `No Memory`。
+Stage 0 中的 `configs/`、`benchmarks/` 和 `scripts/` 暂时保留原路径，避免破坏已有运行入口；后续若产品代码增长，再将评测代码逐步整理到 `eval/`。
 
-### H2：追加式 memory 会产生过期和冲突干扰
+## 2. 产品风险与评测假设
+
+产品首先需要验证的不是“memory 越多越好”，而是以下风险：
+
+- Agent 是否能在新 session 恢复真正影响当前任务的 project context；
+- memory 是否带来重复探索减少，而不是增加无关 context；
+- 过期或冲突 memory 是否会诱导错误行为；
+- 用户是否能查看、修改、删除和纠正 memory；
+- 自动 capture 是否产生过多噪声。
+
+这些风险转化为可验证的评测假设：
+
+### H1：相关 memory 可以提升后续任务表现
+
+在后续任务需要复用前序项目事实时，`Relevant Memory` 的 first-attempt compliance、Task Success Rate 或重复探索成本应优于 `No Cross-Session Memory`。
+
+### H2：无控制的 memory 会产生过期和冲突干扰
 
 当项目规则发生更新时，`Append-only Memory` 仍可能召回旧规则，从而引入 stale memory error 或 memory-induced error。
 
-### H3：冲突感知 memory 可以保留收益并降低错误
+### H3：带 provenance 和 freshness 的 memory 可以保留收益并降低错误
 
 `Conflict-aware Memory` 应识别新旧规则之间的 contradiction，并将旧信息标记为 `superseded` 或 `invalidated`，在保留有用经验的同时降低冲突错误。
 
-这些是假设，不是预先承诺的结论。实验结果可能支持、部分支持或否定它们。
+这些是假设，不是预先承诺的结论。产品迭代必须以用户场景、可复现评测和失败样例共同决定，而不是只追求一个 aggregate score。
 
 ## 3. 实验单元与隔离规范
 
@@ -423,7 +447,51 @@ E5 必须建立在 E1–E4 已经有稳定 verifier、trace 和 failure taxonomy
 
 后续可增加 `update`、`contradiction`、`irrelevant` 等 memory condition，并将 verifier 从字符串扩展为可调用的显式实现。每条 trace 还应记录 retrieved memory、memory visibility、workspace snapshot 和 session boundary。
 
-## 7. 实施阶段
+## 7. 产品优先实施路线
+
+### Phase A：Discovery 与产品定义
+
+- [x] 明确从 research-first 转为 product-first；
+- [x] 完成 Product Brief、轻量 PRD、技术架构和决策记录骨架；
+- [ ] 完成竞品与替代方案调查；
+- [ ] 通过真实 Coding Agent 使用场景确认 target user、核心痛点和当前 workaround；
+- [ ] 根据调查结果修订 PRD，而不是预先假设产品机会成立。
+
+### Phase B：Technical Spike
+
+- [x] 建立 local-first Event Log、atomic spool 和 SQLite/FTS5 projection；
+- [x] 实现手工 revision、branch ref、history、invalidate、restore 与 purge；
+- [x] 实现新 session 的 bounded Router 和 revision-delta delivery；
+- [x] 用 host-independent Core 与薄 Codex adapter 分离产品边界；
+- [ ] 在真实 Codex dogfood 中记录一次可观察的跨 session 行为变化。
+
+### Phase C：Coding Memory MVP
+
+- [x] 实现 Decision、Constraint、ProjectFact、Failure 四类 durable memory；
+- [x] 将 TODO/current progress 分离为 ExecutionNode；Procedure 在 v0 不激活；
+- [x] 实现隔离 Compiler、strict/hybrid promotion 与 capture-gap guardrail；
+- [x] 实现证据驱动 Reconciler、显式 uncertainty 状态和只读 impact report；
+- [x] 实现 repo/branch scope、provenance、immutable revision/ref；
+- [x] 实现 CLI、Markdown Inspector、只读＋反馈 MCP 和 Codex hooks；
+- [x] 实现 anchor/FTS5 Router、delivery ledger 和 bounded injection；
+- [x] 为 replay、policy、reconciliation、routing、worker、MCP 与 hooks 编写测试。
+
+### Phase D：Evaluation 与 Dogfooding
+
+- [ ] 使用 Stage 0 作为 no-memory / relevant-memory baseline；
+- [ ] 连续使用产品处理真实项目任务；
+- [ ] 记录 repeated exploration、stale memory、noise、错误 injection 和用户纠错；
+- [ ] 将失败样例转化为产品需求、测试和后续 evaluation task；
+- [ ] 报告行为指标、token/tool cost 和可复盘 trace。
+
+### Phase E：产品迭代
+
+- [ ] 根据 dogfooding 结果决定是否引入 lexical/semantic retrieval；
+- [ ] 只在真实问题出现后考虑 embedding、vector database 或 Agent-facing tools；
+- [ ] 评估是否需要 DSH plugin、MCP、同步或多 Agent memory；
+- [ ] 每次迭代更新 PRD、architecture、decision log 和 baseline comparison。
+
+## 8. Evaluation implementation roadmap
 
 ### Phase 0：项目初始化
 
@@ -497,7 +565,7 @@ E5 必须建立在 E1–E4 已经有稳定 verifier、trace 和 failure taxonomy
 - [ ] 再考虑 A-MEM、Hermes 或 OpenClaw 作为参考/对照；
 - [ ] 不让框架 API 行为替代对 memory failure mode 的定义。
 
-## 8. 指标
+## 9. 指标
 
 首版至少报告：
 
@@ -524,7 +592,7 @@ errors caused by retrieved memory / memory-dependent tasks
 
 所有指标都需要结合任务定义和错误样例解释，不能只给单一 aggregate number。
 
-## 9. 运行与可复现性约束
+## 10. 运行与可复现性约束
 
 - 实验按 episode 的时间顺序执行，不随机打乱 sequential tasks；
 - train / validation / test（若后续引入）按时间或任务版本划分；
@@ -537,30 +605,29 @@ errors caused by retrieved memory / memory-dependent tasks
 - 结果文件应能追溯到代码版本和运行参数；
 - 不把 `D:\Vault\Reference\MemoryAgentBench` 这样的本地绝对路径写成项目硬依赖。
 
-## 10. Definition of Done
+## 11. Definition of Done
 
-第一版项目完成的最低标准：
+第一版产品完成的最低标准：
 
-1. clone 后能看到清晰的问题定义和运行说明；
-2. 有一份明确的 Experimental Isolation Spec；
-3. 有 3–5 个可自动验证的 sequential tasks；
-4. B0–B2 可运行，B3–B4 至少有最小规则式实现；
-5. runner 能完整跑通 `task → answer → verifier → feedback → memory → next task`；
-6. E1 能使用 Oracle Fact、host-managed retrieval 和固定 injection 跑通，并生成结构化 `results.json`；
-7. `results.json` 包含 provider、model、DSH commit、session、workspace snapshot、memory condition 和 memory trace；
-8. 至少报告 Task Success Rate、Placebo Effect 和 Memory-induced Error Rate，并给出失败样例；
-9. 结果能够解释 memory 带来的收益和风险，而不是只展示 demo；
-10. E2–E5 的后续变量释放顺序已经写入实验记录，且每一步都不会回头混入前一阶段未控制的变量。
+1. clone 后能看到清晰的产品问题、MVP 边界和运行说明；
+2. 有 Product Brief、PRD、Technical Architecture 和 Decision Log；
+3. Technical Spike 能完成“写入 → 新 session 检索 → 注入 → 行为变化”；
+4. 至少支持一条带 provenance 的 repo-level memory；
+5. 用户能查看、编辑、删除和 supersede memory；
+6. Stage 0 baseline evaluation 仍然可运行，并能生成结构化结果；
+7. 至少报告 Context Recovery、Task Success、Irrelevant Retrieval 或 Stale Memory 中的可解释指标；
+8. 有真实 dogfooding 记录和失败样例；
+9. 产品结果能够解释收益、风险、限制和下一步，而不是只展示 demo；
+10. E2–E5 只有在 MVP 和 Stage 0 稳定后，才作为后续 evaluation/research 扩展。
 
-## 11. 下一步执行顺序
+## 12. 下一步执行顺序
 
-1. 新建 `Experimental Isolation Spec`，明确五层控制边界、B0–B4、DSH profile、Session 边界和 workspace reset；
-2. 完成 2 个模型、8–12 个 prototype tasks 的 model selection pilot，冻结正式实验的 provider/model/protocol；
-3. 在 `src/memory.py` 中定义 cross-session memory 的最小 interface 和 Oracle Fact schema；
-4. 在 `tasks/tasks.json` 中建立第一批 3–5 个 sequential episodes，并明确 `Ep1`–`Ep6` 的规则更新 fixture；
-5. 编写确定性 mock agent、verifier、host-managed retrieval 和 clean-snapshot runner；
-6. 为 memory lifecycle、session isolation、filesystem reset、metadata 和 trace 写单元测试；
-7. 先完成 E1：运行 B0、B1、B2，再加入 B3、B4，分析 positive transfer、placebo、stale memory 与 freshness-aware maintenance；
-8. E1 稳定后依次推进 E2 acquisition、E3 retrieval、E4 agent control、E5 learned/RL policy；
-9. 最后再引入真实 LLM、DSH adapter 或外部 Agent framework，并保持核心 benchmark 与实验边界不变。
-
+1. 完成竞品与替代方案调查，并修订 Product Brief/PRD；
+2. 完成 Technical Spike：本地 memory store、写入、检索、注入和行为验证；
+3. 在 `src/` 中定义 memory item、repository scope、provenance 和状态接口；
+4. 在隔离配置中运行 Claude-Mem / Basic Memory 统一体验协议；
+5. 用真实 Codex dogfood capture gap、stale、conflict、warning compliance；
+6. 完成 C0–C5 三次 pilot，冻结任务、模型、工具、prompt 和指标；
+7. 安全指标通过后执行 confirmation runs，并区分工程完成与产品证据；
+8. 根据真实失败决定是否扩充 retention、APICompiler 或其他 host adapter；
+9. v0 证据稳定后再评估向量检索、Procedure 和多仓库能力。

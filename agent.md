@@ -4,9 +4,10 @@
 
 ## 1. 项目目标与工作边界
 
-- 项目目标是研究 Agent memory 的收益、失败模式和负迁移，而不是单纯展示某个框架的 API。
-- 优先建设 framework-independent benchmark harness，再接入 Letta 或其他外部系统。
-- 第一阶段只实现可解释、可自动验证的 baseline；不要提前引入 embedding、向量数据库、graph memory 或 latent memory。
+- 项目目标是构建 Coding Agent 的 repo-level persistent memory 产品，并用可复现评测验证它是否真正减少跨 session 的重复探索和错误。
+- 产品优先，研究与 benchmark 作为 evaluation foundation、技术决策依据和失败分析工具。
+- Stage 0 保留为 baseline evaluation，不再被描述为整个项目的最终目标。
+- 第一版只实现可解释、可人工纠错、可自动验证的 MVP；不要提前引入 embedding、向量数据库、graph memory 或 latent memory。
 - `Reference/MemoryAgentBench` 等外部资料只作为参考，不复制源码，也不把本地绝对路径作为项目依赖。
 
 ## 2. 修改代码前
@@ -38,25 +39,33 @@
 - 严格防止 future information leakage：当前 episode 不能读取未来 episode 的 feedback 或 memory。
 - 每个 episode 记录 instruction、agent output、verifier result、feedback、retrieved memory、memory state 和 error type。
 - 所有 baseline 使用相同 task order、相同 verifier 和尽可能相同的 agent policy。
-- 先跑 `NoMemory` baseline，再跑 `AppendOnlyMemory`，最后实现 `ConflictAwareMemory`。
+- 先跑 `No Cross-Session Memory` baseline，再跑 Oracle/Relevant Memory，最后实现可维护的 product memory policy。
 - 结果不能只报告一个指标；至少同时报告成功率、失败类型和必要的 memory overhead。
 
 ## 5. Memory interface 约束
 
-第一版 memory interface 保持简单，建议至少包含：
+第一版 memory interface 保持简单，包含 capture、retrieve 和 user-control 所需的最小能力：
 
 ```python
 class Memory:
+    def propose(self, candidate):
+        raise NotImplementedError
+
     def write(self, item):
         raise NotImplementedError
 
     def retrieve(self, query):
         raise NotImplementedError
+
+    def delete(self, memory_id):
+        raise NotImplementedError
 ```
 
 - `NoMemory.retrieve()` 应返回空集合，不产生跨 episode 状态。
-- `AppendOnlyMemory` 只追加可追踪的 memory item，不在第一版偷偷加入语义检索。
-- `ConflictAwareMemory` 的更新、失效和 supersede 行为必须能从 trace 中解释。
+- memory item 必须带有 repository scope、类型、来源、时间和状态，避免形成无法解释的黑盒文本。
+- 自动提取第一版优先采用“Agent 提议 + 用户确认”，不要默认静默保存全部对话。
+- retrieval 必须可解释，能展示为什么某条 memory 被注入。
+- 更新、删除、失效和 supersede 行为必须能从 trace 中解释。
 - memory 组件不应直接决定任务成功；成功与否由 verifier 独立判断。
 
 ## 6. 测试与验证
@@ -80,7 +89,7 @@ ruff check .
 
 ## 7. 文件与依赖规范
 
-- 代码放在 `src/`，任务定义放在 `tasks/`，测试放在 `tests/`，实验输出放在 `results/`。
+- 产品代码放在 `src/`，Stage 0 兼容评测暂放在 `configs/`、`benchmarks/`、`scripts/`，未来可迁移到 `eval/`；产品文档放在 `docs/`，测试放在 `tests/`，实验输出放在 `results/`。
 - 不提交 `.env`、API key、token、password、cache、模型权重和未经说明的大型数据文件。
 - 新依赖必须说明用途、版本范围和是否能被最小 baseline 替代。
 - 外部 benchmark 或 framework 需要记录 repository、版本/commit hash 和 adapter 说明。
@@ -113,3 +122,5 @@ git grep -n "api_key\|secret\|token\|password" -- .
 - 实验报告必须说明 task 定义、memory condition、verifier、指标、结果和局限性。
 - 不把“跑通 demo”写成“证明 memory 有效”；明确区分 observation、interpretation 和 limitation。
 - 如果实验设计改变，先更新 `PROJECT_PLAN.md`，再修改实现。
+- 产品方向、用户、MVP 边界和非目标必须同步记录在 `docs/product-brief.md` 与 `docs/prd.md`。
+- 重要方向变化记录在 `docs/decisions.md`，不要只留在聊天记录中。
