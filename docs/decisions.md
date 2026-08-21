@@ -1,61 +1,53 @@
 # Decision Log
 
-## 2026-08-19 — Shift from research-first to product-first
+## 2026-08-19 — Make the product the repository mainline
 
 ### Decision
 
-项目主线从“研究 Agent memory 机制”调整为“构建 Coding Agent Memory 产品”。
-
-### What stays
-
-- Stage 0 isolation harness；
-- Benchmark Oracle Fact；
-- fixed DSH baseline；
-- host-managed memory injection；
-- verifier、trace、summary 和五层隔离边界。
-
-### What changes
-
-- README 采用 product-first framing；
-- Stage 0 改称 baseline evaluation foundation；
-- 新增 Product Brief、PRD、Technical Architecture 和竞争调查框架；
-- 后续优先做 Technical Spike、MVP 和 dogfooding，而不是直接推进 E2–E5；
-- research questions 改写为 product risks、technical uncertainties 和 evaluation hypotheses。
-
-### Rationale
-
-已有 Stage 0 是产品价值证明所需要的 evidence layer，不应删除；但如果继续把
-它作为项目首页的主要身份，项目会过度 research-oriented，无法体现真实用户、
-产品边界、可用性和迭代闭环。
+The repository builds a local-first Coding Agent Memory product. Research and
+evaluation exist to test product risks; they do not define a second product
+roadmap or replace the capture/compile/reconcile/route/delivery architecture.
 
 ### Consequence
 
-当前仓库保留旧的 Stage 0 路径以保证运行入口稳定。产品代码逐步进入 `src/`，
-评测代码未来再整理到 `eval/`；目录迁移必须在有测试和兼容入口后进行。
+Product code lives in `src/agent_memory`, Codex remains a thin adapter, and
+evaluation reports engineering completion separately from behavioral benefit.
 
-## 2026-08-21 — Freeze v0 memory boundary and uncertainty model
+## 2026-08-21 — Freeze the v0 memory boundary
 
 ### Decision
 
 Durable memory contains only Decision, Constraint, ProjectFact, and Failure.
-Procedure is inactive in v0. TODO, plan, and current progress move to a separate
-Execution State plane.
+Procedure is inactive in v0. TODO, plan, and current progress belong to a
+separate Execution State plane.
 
-The Event Log is authoritative; SQLite and Markdown are rebuildable projections.
-Codex is a thin first adapter. Promotion defaults to strict, and all capture gaps,
-freshness uncertainty, conflicts, and unprovable claims must remain explicit.
-
-### Rationale
-
-The main product risk is false certainty: incomplete capture, temporary attempts
-compiled as decisions, incorrect supersession, ignored warnings, and compiler
-context pollution. Evidence, authority, immutable revisions, isolation, and
-audit make these risks observable and testable.
+The Event Log is authoritative; SQLite and Markdown are rebuildable
+projections. Promotion defaults to strict, and capture gaps, freshness
+uncertainty, conflicts, and unprovable claims remain explicit.
 
 ### Consequence
 
-- no Procedure activation, vector search, cloud sync, or automatic rollback in v0;
 - uncommitted code cannot authorize durable truth;
 - code cannot supersede normative memory;
-- MCP is read-only plus feedback; human CLI owns adjudication;
-- engineering acceptance is reported separately from benchmark benefit.
+- MCP is read-only plus feedback;
+- no vector search, cloud sync, or automatic rollback enters v0.
+
+## 2026-08-21 — Retire the Decimal Stage 0 harness
+
+### Decision
+
+Remove the paper-oriented Decimal runner, fixtures, DSH configuration, tests,
+and dedicated documentation without an archive or compatibility wrapper.
+
+### Rationale
+
+That harness injected a fixed host-managed memory and did not exercise the
+product Core, Hooks, Compiler, Reconciler, or Router. Passing it could not
+establish product correctness or benefit, while keeping it created a second
+roadmap and additional runtime maintenance.
+
+### Consequence
+
+Repo Evolution is the only active v0 benchmark. Fresh sessions, clean
+workspaces, placebo controls, fixed experimental variables, versioned manifests,
+and protocol freezing remain as general evaluation requirements.

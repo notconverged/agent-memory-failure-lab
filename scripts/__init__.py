@@ -1,1 +1,1 @@
-"""Stage 0 experiment scripts."""
+"""Reproducible Coding Agent Memory evaluation scripts."""

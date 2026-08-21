@@ -5,6 +5,7 @@ import sys
 from collections.abc import Callable
 from typing import Any
 
+from agent_memory import __version__
 from agent_memory.core import MemoryCore
 from agent_memory.paths import default_data_root, discover_repository
 from agent_memory.router import ContextRouter
@@ -86,7 +87,10 @@ class MCPServer:
                 result = {
                     "protocolVersion": requested or "2025-06-18",
                     "capabilities": {"tools": {"listChanged": False}},
-                    "serverInfo": {"name": "coding-agent-memory", "version": "0.1.0"},
+                    "serverInfo": {
+                        "name": "coding-agent-memory",
+                        "version": __version__,
+                    },
                 }
             elif method == "ping":
                 result = {}

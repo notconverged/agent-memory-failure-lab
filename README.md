@@ -1,36 +1,17 @@
 # Coding Agent Memory
 
-一个面向 Coding Agent 的本地优先持久记忆层（persistent memory layer）。
-
-项目目标不是让 Agent 记住全部聊天历史，而是让它在重新进入 repository
-时恢复少量真正有价值的项目上下文：架构决策、项目约束、可验证的项目事实
-和带条件的失败经验。TODO 与当前进度属于独立 Execution State，不是长期记忆。
+一个面向 Coding Agent 的 local-first 持久记忆层。它不保存全部聊天历史，
+而是在重新进入 repository 时恢复少量会改变后续工作的项目状态：
+Decision、Constraint、ProjectFact 和带条件的 Failure。
 
 > Coding Agent should remember the project state that changes future work.
 
-仓库同时包含一个可复现的 evaluation foundation，用于判断 memory 是否真的
-减少跨 session 的重复探索和错误，而不是只展示一个能工作的 demo。
+TODO、当前进度和执行计划属于独立 Execution State，不是 durable memory。
+Procedure 在 v0 中不激活。
 
-## 产品问题
+## 唯一产品主线
 
-跨 session 使用 Coding Agent 时，Agent 往往会重新扫描文件、重复尝试已经
-失败的方法，或者忘记用户已经做出的架构决策。当前常见 workaround 是
-README、AGENTS.md、CLAUDE.md、手动总结和聊天记录，但这些方式通常缺少：
-
-- 明确的 memory 类型和来源；
-- 什么时候应该恢复某条 memory 的判断；
-- 过期、冲突和错误 memory 的处理；
-- 用户查看、修改、删除和纠正 memory 的能力。
-
-## 产品方向
-
-当前项目从 research-first benchmark 转为 product-first Coding Agent Memory。
-原有 Stage 0 不删除，而重新定位为产品的 baseline evaluation：
-
-> 在固定 harness 下建立 no-memory / relevant-memory 对照，验证跨 session
-> memory 是否能产生可观察的行为改善。
-
-产品闭环计划为：
+Coding Agent Memory v0 只对应以下产品闭环：
 
 ```text
 Hooks → atomic spool → Event Log → isolated Compiler
@@ -38,140 +19,120 @@ Hooks → atomic spool → Event Log → isolated Compiler
       → context capsule / warning → Agent → new evidence
 ```
 
-## MVP 边界
+Codex plugin 是首个 adapter，不是产品边界。Python Core 保持宿主无关，
+Event Log 是可重放权威，SQLite 和 Markdown 都是可重建投影。
 
-第一版优先支持：
+## v0 边界
 
-1. repo-level memory；
-2. Decision、Constraint、ProjectFact、Failure 四类 durable memory；
-3. Event Log、SQLite projection、strict promotion 与显式不确定性；
-4. FTS5/anchor 检索、context capsule 与动作前 warning；
-5. revision/history/edit/invalidate/restore/tombstone/purge；
-6. 只读＋反馈 MCP 与薄 Codex plugin；
-7. Stage 0、repo-evolution benchmark 和 dogfooding。
+第一版支持：
 
-明确不做：
+- 单用户、单 Git repository 和多分支；
+- 四类 durable memory 与独立 Execution State；
+- 显式 proposed、active、conflicted、needs_revalidation 等状态；
+- strict/hybrid promotion、证据驱动 reconciliation；
+- anchor/FTS5 Router、bounded context capsule 和动作前 warning；
+- 人工 CLI、只读＋反馈 MCP、薄 Codex plugin；
+- Windows dogfood 与 Linux CI。
 
-- 记住完整聊天历史；
-- 通用个人助理 memory；
-- 一开始就做多 Agent 共享；
-- 一开始就引入复杂 embedding、vector database、latent memory 或 RL policy；
-- 把某个 DSH memory plugin 当成产品本身。
-- Procedure、云同步、多仓库共享和自动代码回滚。
+第一版不做 Procedure、云同步、多仓库共享、向量检索、完整代码依赖图、
+自动代码回滚和完整 transcript 存储。
+
+## 产品与评测的关系
+
+仓库只有一个活跃产品 benchmark：
+
+```text
+Product
+└── Coding Agent Memory v0
+
+Evaluation
+└── Repo Evolution
+    └── C0–C5 experimental conditions
+```
+
+Repo Evolution 当前版本是 `0.1.0-draft.1`，状态为 specification 和 Git
+snapshot materializer。它能够校验 scenario、gold、状态变化和可复现 Git
+快照，但尚未执行真实 Coding Agent，也不能单独证明产品收益。
+
+只有 execution adapter、评分闭环和冻结后的 confirmation runs 完成后，
+Repo Evolution 才能产生产品效果证据。详见
+[benchmark catalog](benchmarks/README.md) 和
+[evaluation protocol](docs/evaluation-plan.md)。
 
 ## 当前状态
 
 已完成：
 
-- Stage 0 cross-session memory isolation harness；
-- Benchmark Oracle Fact、host-managed injection 和 host-side verifier；
-- Windows / WSL 环境迁移记录；
-- 产品方向、MVP 边界和技术架构文档骨架。
-- 可重放 Event Log、atomic spool、SQLite/FTS5 projection；
-- revision/ref 状态机、strict/hybrid policy、Reconciler 与 Router；
-- CLI、只读＋反馈 MCP、Markdown Inspector 和 Codex plugin；
-- 隔离 Compiler executor、one-shot lease worker 与确定性测试。
+- Event Log、atomic spool、SQLite/FTS5 projection；
+- immutable revision/ref 状态机；
+- strict/hybrid policy、Reconciler 和 Router；
+- CLI、MCP、Markdown Inspector 和 Codex plugin；
+- 隔离 Compiler、one-shot worker 和确定性测试；
+- Repo Evolution specification、gold 和 Git materializer。
 
 尚未完成：
 
-- Product discovery 和竞品调查；
-- 真实长期 dogfood 与外部服务体验；
-- C0–C5 真实模型 pilot/confirmation runs；
-- payload retention compaction 与完整 benchmark 样本扩充；
-- 连续 dogfooding 和产品级 evaluation。
+- Repo Evolution Agent execution adapter 与自动评分闭环；
+- C0–C5 pilot、protocol freeze 和 confirmation runs；
+- 真实长期 dogfood、竞品统一体验和失败样例积累；
+- payload retention compaction。
 
 ## 项目结构
 
 ```text
 agent-memory-failure-lab/
-├── README.md
-├── PROJECT_PLAN.md
-├── agent.md
-├── src/                         # 产品代码
-├── plugins/coding-agent-memory/ # 薄 Codex adapter
-├── configs/minimal.cordis.yml   # Stage 0 固定 harness
-├── benchmarks/decimal_transfer/ # Stage 0 benchmark
-├── benchmarks/repo_evolution/   # v0 executable benchmark
-├── scripts/run_episode.py       # Stage 0 runner
-├── docs/
-│   ├── product-brief.md
-│   ├── competitive-analysis.md
-│   ├── prd.md
-│   ├── architecture.md
-│   ├── decisions.md
-│   ├── isolation-spec.md
-│   └── environment-setup.md
+├── src/agent_memory/             # 宿主无关的产品 Core
+├── plugins/coding-agent-memory/  # 薄 Codex adapter
+├── benchmarks/
+│   ├── README.md                 # benchmark catalog
+│   └── repo_evolution/           # 唯一活跃的 v0 benchmark
+├── scripts/run_repo_evolution.py # specification/materializer 入口
+├── docs/                         # PRD、架构、评测和决策
 ├── tests/
-└── results/                     # 本地实验结果，不提交敏感信息
+└── results/                      # 本地运行结果，不提交
 ```
 
-Stage 0 暂时保留在 `configs/`、`benchmarks/` 和 `scripts/`，以保持已有运行
-入口稳定。产品代码成熟后，再将评测代码整理到 `eval/`。
-
-## v0 本地运行
+## 本地运行
 
 ```powershell
-python -m pip install -e .
+python -m pip install -e ".[dev]"
 agent-memory init
 agent-memory doctor
 agent-memory status
 codex plugin install --dev ./plugins/coding-agent-memory
 ```
 
-插件更新后使用 cachebuster/reinstall 流程。Core 数据默认保存在用户数据目录，
-不会写入 repository 工作树。
-
-## 推荐工作流
-
-```text
-Discovery
-    → Product Brief
-    → Lightweight PRD
-    → Technical Spike
-    → MVP
-    → Evaluation
-    → Dogfooding
-    → Iteration
-```
-
-不要直接跳到复杂 retrieval。第一条技术探针只需要证明：本地 memory store
-能否被 Coding Agent 读取，并在新的 session 中影响行动。
-
-## Stage 0 运行
-
-默认 Python 3.10+。真实 DSH 运行需要固定 DSH
-`v0.1.0-rc.7` / commit `99f6f02`，并配置对应 provider 的 API key。
-
-先运行本地检查：
+Repo Evolution dry run：
 
 ```powershell
-python scripts/run_episode.py --dry-run --condition no_memory
-python scripts/run_episode.py --dry-run --condition relevant_memory
-pytest
+python scripts/run_repo_evolution.py --dry-run --condition C3
 ```
 
-如果使用 Windows native DSH：
+生成隔离的 Git 演化 workspace：
 
 ```powershell
-dsh --profile headless --patch configs/minimal.cordis.yml --dump-config
-python scripts/run_episode.py --smoke
-python scripts/run_episode.py --confirm --replicates 10
+python scripts/run_repo_evolution.py `
+  --workspace results/repo-evolution/C3 `
+  --condition C3
 ```
 
-如果使用 WSL Ubuntu，请先阅读[环境安装与迁移记录](docs/environment-setup.md)。
-Windows native 和 WSL Linux 需要分别安装 DSH，不能混合使用 session 或实验结果。
+该命令只生成 snapshots 和 manifest，不调用模型。
 
-Stage 0 的详细隔离规则、指标和接受标准见
-[isolation-spec.md](docs/isolation-spec.md)。
+## 验证
+
+```powershell
+python -m ruff check src scripts tests
+python -m pytest -q
+python -m pytest -q -m evaluation
+```
 
 ## 文档入口
 
-- [产品 Brief](docs/product-brief.md)
-- [竞品与替代方案调查框架](docs/competitive-analysis.md)
-- [轻量 PRD](docs/prd.md)
-- [技术架构](docs/architecture.md)
-- [产品方向决策记录](docs/decisions.md)
-- [Stage 0 隔离规范](docs/isolation-spec.md)
-- [Windows / WSL 环境记录](docs/environment-setup.md)
-- [项目实施计划](PROJECT_PLAN.md)
-- [项目协作与代码规范](agent.md)
+- [Product Brief](docs/product-brief.md)
+- [PRD](docs/prd.md)
+- [Architecture](docs/architecture.md)
+- [Evaluation Protocol](docs/evaluation-plan.md)
+- [Decision Log](docs/decisions.md)
+- [Project Plan](PROJECT_PLAN.md)
+- [Competitive Analysis](docs/competitive-analysis.md)
+- [Competitor Trial Protocol](docs/competitor-trial-protocol.md)

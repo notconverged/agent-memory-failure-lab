@@ -15,7 +15,7 @@ sessions without pretending that captured memory is always complete or correct.
 - deterministic FTS5/anchor routing and bounded Codex delivery;
 - human CLI, read-only＋feedback MCP, thin Codex plugin;
 - Windows dogfood and Linux CI tests;
-- Stage 0 preservation and repo-evolution C0–C5 benchmark.
+- Repo Evolution specification/materializer with C0–C5 conditions.
 
 ## Out of scope
 
@@ -54,3 +54,7 @@ Engineering completion and product benefit are separate. Replay, isolation,
 permissions, latency, state-machine, and closed-loop tests establish v0
 engineering completion. C3/C4 failing to beat controls is reported as an
 inconclusive or negative hypothesis, without changing frozen tasks or metrics.
+
+Repo Evolution is currently a draft specification and Git snapshot
+materializer. It does not become product evidence until the Agent execution
+adapter, scoring loop, protocol freeze, and confirmation runs are complete.

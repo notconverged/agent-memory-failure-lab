@@ -1,4 +1,8 @@
 {
+  "benchmark_id": "repo-evolution",
+  "benchmark_version": "0.1.0-draft.1",
+  "schema_version": 1,
+  "protocol_status": "draft",
   "scenario_id": "ledger-rounding-evolution-v1",
   "expected_memories": [
     {
