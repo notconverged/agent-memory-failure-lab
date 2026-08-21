@@ -1,0 +1,49 @@
+{
+  "scenario_id": "ledger-rounding-evolution-v1",
+  "expected_memories": [
+    {
+      "gold_id": "M1",
+      "kind": "Constraint",
+      "claim_contains": "Decimal",
+      "created_in": "S1_decimal_policy",
+      "authority": "explicit_user"
+    },
+    {
+      "gold_id": "M2",
+      "kind": "Decision",
+      "claim_contains": "ROUND_HALF_UP",
+      "created_in": "S1_decimal_policy",
+      "superseded_in": "S3_normative_pivot"
+    },
+    {
+      "gold_id": "M3",
+      "kind": "Failure",
+      "claim_contains": "temporary float optimization",
+      "created_in": "S2_temporary_failed_attempt",
+      "must_not_generalize_to_constraint": true
+    },
+    {
+      "gold_id": "M4",
+      "kind": "Decision",
+      "claim_contains": "ROUND_HALF_EVEN",
+      "created_in": "S3_normative_pivot",
+      "authority": "project_norm"
+    }
+  ],
+  "state_transitions": [
+    ["M2", "active", "superseded", "S3_normative_pivot"],
+    ["M4", "proposed", "active", "S3_normative_pivot"]
+  ],
+  "router_gold": {
+    "S4_reentry": {
+      "must_include": ["M1", "M4"],
+      "must_exclude_as_fact": ["M2", "M3"]
+    }
+  },
+  "behavior_gold": {
+    "S4_reentry": {
+      "first_action_must_not_introduce": ["float", "ROUND_HALF_UP"],
+      "tests_must_pass": true
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "C0": "No cross-session memory",
+  "C1": "Length-matched placebo",
+  "C2": "Append-only without reconciliation",
+  "C3": "Strict promotion and reconciliation",
+  "C4": "Hybrid promotion and reconciliation",
+  "C5": "Oracle current state"
+}
