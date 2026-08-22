@@ -32,6 +32,24 @@ def render_markdown(core: MemoryCore) -> str:
                 f"- Authority: `{memory['authority']}`",
                 f"- Created: `{memory['created_at']}`",
                 f"- Rationale: {memory['rationale']}",
+                (
+                    f"- Compiler job: "
+                    f"`{memory['metadata'].get('compiler_job_id', 'manual')}`"
+                ),
+                (
+                    f"- Operation: "
+                    f"`{memory['metadata'].get('candidate_operation', 'manual')}`"
+                ),
+                "- Anchors:",
+            ]
+        )
+        for anchor in memory["anchors"]:
+            lines.append(
+                f"  - `{anchor['anchor_type']}` {anchor['target']} "
+                f"(hash: `{anchor.get('content_hash', '') or 'unknown'}`)"
+            )
+        lines.extend(
+            [
                 "- Evidence:",
             ]
         )

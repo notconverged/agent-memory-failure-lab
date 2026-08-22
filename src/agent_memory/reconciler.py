@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import subprocess
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from agent_memory.core import MemoryCore
@@ -112,6 +115,76 @@ class Reconciler:
             "mark_dirty",
             "environment_change_requires_revalidation",
         )
+
+    def reconcile_repository(
+        self, repository_root: Path, head: str
+    ) -> list[ReconciliationResult]:
+        checkpoint = self.core.store.get_reconciliation_checkpoint(
+            self.core.repository_id, self.core.branch
+        )
+        status = self._git(repository_root, "status", "--porcelain=v1")
+        worktree_hash = hashlib.sha256(status.encode()).hexdigest()
+        if (
+            checkpoint
+            and checkpoint["head"] == head
+            and checkpoint["worktree_hash"] == worktree_hash
+        ):
+            return []
+
+        changed_targets = self._status_targets(status)
+        previous_head = checkpoint["head"] if checkpoint else ""
+        if previous_head and previous_head != head:
+            changed_targets.update(
+                self._git(
+                    repository_root,
+                    "diff",
+                    "--name-only",
+                    previous_head,
+                    head,
+                ).splitlines()
+            )
+
+        results: list[ReconciliationResult] = []
+        committed = not bool(status.strip())
+        for item in self.impact_report(changed_targets):
+            if item["status"] != MemoryStatus.ACTIVE.value:
+                continue
+            target = item["anchors"][0]["target"]
+            results.append(
+                self.reconcile_anchor_change(
+                    item["memory_id"],
+                    target,
+                    committed=committed,
+                    evidence_excerpt=f"Git change observed at {target}",
+                )
+            )
+        self.core.record_reconciliation_checkpoint(
+            head, worktree_hash, sorted(changed_targets)
+        )
+        return results
+
+    @staticmethod
+    def _git(repository_root: Path, *args: str) -> str:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repository_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result.stdout.rstrip()
+
+    @staticmethod
+    def _status_targets(status: str) -> set[str]:
+        targets: set[str] = set()
+        for line in status.splitlines():
+            value = line[3:].strip()
+            if " -> " in value:
+                value = value.split(" -> ", maxsplit=1)[1]
+            if value:
+                targets.add(value.replace("\\", "/"))
+        return targets
 
     def impact_report(self, changed_targets: set[str]) -> list[dict[str, Any]]:
         memories = self.core.store.list_current(

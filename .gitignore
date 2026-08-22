@@ -26,6 +26,7 @@ results/*.tmp
 results/runs/
 results/repo-evolution/
 .agent-memory/
+/.local-lab/
 
 # Data and model artifacts; keep only deliberately curated small fixtures
 data/raw/

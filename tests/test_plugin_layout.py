@@ -19,6 +19,8 @@ def test_plugin_manifest_and_default_hook_discovery_are_valid():
     assert {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse"} <= set(
         hooks["hooks"]
     )
+    session_end = hooks["hooks"]["SessionEnd"][0]["hooks"][0]
+    assert session_end["timeout"] == 3
 
 
 def test_plugin_mcp_surface_points_to_host_independent_core():

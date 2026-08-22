@@ -7,11 +7,13 @@ from collections.abc import Callable
 from agent_memory.compiler import CompilerExecutor, highest_authority
 from agent_memory.core import MemoryCore
 from agent_memory.models import (
+    CandidateOperation,
     CaptureCoverage,
     CompilerJob,
     EvidenceAuthority,
     EvidenceBundle,
     EvidenceRef,
+    MemoryStatus,
     SessionStateSnapshot,
 )
 from agent_memory.policy import PromotionPolicy, evaluate_promotion
@@ -56,21 +58,65 @@ class OneShotWorker:
                             job.evidence_bundle.coverage,
                             self.promotion_policy,
                         )
-                        revision = self.core.create_memory(
-                            candidate.kind,
-                            candidate.claim,
-                            candidate.rationale,
-                            result.status,
-                            highest_authority(candidate),
-                            candidate.evidence,
-                            candidate.anchors,
-                            metadata={
-                                "compiler_job_id": job.job_id,
-                                "promotion_reason": result.reason,
-                                "promotion_policy": self.promotion_policy.value,
-                            },
+                        existing = self._find_imported_candidate(
+                            job.job_id, candidate.candidate_id
                         )
-                        imported.append(revision.to_dict())
+                        if existing is None:
+                            revision = self.core.create_memory(
+                                candidate.kind,
+                                candidate.claim,
+                                candidate.rationale,
+                                result.status,
+                                highest_authority(candidate),
+                                candidate.evidence,
+                                candidate.anchors,
+                                memory_id=(
+                                    candidate.target_memory_id
+                                    if candidate.operation is CandidateOperation.REVISE
+                                    else None
+                                ),
+                                metadata={
+                                    "compiler_job_id": job.job_id,
+                                    "candidate_id": candidate.candidate_id,
+                                    "candidate_operation": candidate.operation.value,
+                                    "promotion_reason": result.reason,
+                                    "promotion_policy": self.promotion_policy.value,
+                                    "observed_head": job.head,
+                                },
+                            )
+                            imported_value = revision.to_dict()
+                        else:
+                            imported_value = existing
+                        for superseded_id in candidate.supersedes_memory_ids:
+                            current = self.core.store.get_current(
+                                self.core.repository_id,
+                                self.core.branch,
+                                superseded_id,
+                                self.core.base_branch,
+                            )
+                            if current and current["status"] != "superseded":
+                                self.core.transition(
+                                    superseded_id,
+                                    MemoryStatus.SUPERSEDED,
+                                    (
+                                        f"Superseded by {imported_value['memory_id']} "
+                                        f"from compiler job {job.job_id}"
+                                    ),
+                                    highest_authority(candidate),
+                                )
+                                self.core.add_dependency(
+                                    imported_value["memory_id"],
+                                    "memory",
+                                    superseded_id,
+                                    [
+                                        {
+                                            "relation": "supersedes",
+                                            "compiler_job_id": job.job_id,
+                                            "candidate_id": candidate.candidate_id,
+                                        }
+                                    ],
+                                )
+                        imported.append(imported_value)
                     self.core.finish_compiler_job(
                         job.job_id, "completed", candidates=imported
                     )
@@ -83,6 +129,23 @@ class OneShotWorker:
         finally:
             self.core.store.release_lease(lease_name, owner)
         return {"lease_acquired": True, "processed": processed, "failed": failed}
+
+    def _find_imported_candidate(
+        self, job_id: str, candidate_id: str
+    ) -> dict | None:
+        rows = self.core.store.connection.execute(
+            "SELECT memory_id, revision, metadata_json FROM revisions"
+        ).fetchall()
+        import json
+
+        for row in rows:
+            metadata = json.loads(row["metadata_json"])
+            if (
+                metadata.get("compiler_job_id") == job_id
+                and metadata.get("candidate_id") == candidate_id
+            ):
+                return self.core.store.history(row["memory_id"])[row["revision"] - 1]
+        return None
 
 
 def compiler_job_from_dict(value: dict) -> CompilerJob:
@@ -124,12 +187,16 @@ def compiler_job_from_dict(value: dict) -> CompilerJob:
         state_value.get("observed_head", ""),
     )
     return CompilerJob(
-        value["job_id"],
-        value["repository_id"],
-        value["branch"],
-        value["cursor"],
-        value["head"],
-        bundle,
-        state,
-        value["created_at"],
+        job_id=value["job_id"],
+        repository_id=value["repository_id"],
+        branch=value["branch"],
+        cursor=value["cursor"],
+        head=value["head"],
+        evidence_bundle=bundle,
+        session_state=state,
+        input_start_event_id=value.get("input_start_event_id", ""),
+        input_end_event_id=value.get("input_end_event_id", value["cursor"]),
+        input_hash=value.get("input_hash", ""),
+        current_memories=tuple(value.get("current_memories", ())),
+        created_at=value["created_at"],
     )

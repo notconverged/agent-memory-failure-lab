@@ -8,6 +8,14 @@ import sys
 import uuid
 from pathlib import Path
 
+from agent_memory.audit import (
+    build_audit,
+    render_dot,
+    write_output,
+)
+from agent_memory.audit import (
+    render_markdown as render_trace_markdown,
+)
 from agent_memory.compiler import CodexExecCompiler
 from agent_memory.core import MemoryCore
 from agent_memory.inspector import write_markdown
@@ -63,6 +71,15 @@ def build_parser() -> argparse.ArgumentParser:
     purge.add_argument("memory_id")
     purge.add_argument("--yes", action="store_true")
     sub.add_parser("rebuild")
+    trace = sub.add_parser("trace")
+    trace.add_argument("--session", required=True)
+    trace.add_argument("--verify", action="store_true")
+    trace.add_argument("--format", choices=("json", "markdown"), default="json")
+    trace.add_argument("--output", type=Path)
+    graph = sub.add_parser("graph")
+    graph.add_argument("--session", required=True)
+    graph.add_argument("--format", choices=("json", "dot"), default="json")
+    graph.add_argument("--output", type=Path)
     worker = sub.add_parser("worker", help=argparse.SUPPRESS)
     worker.add_argument(
         "--policy",
@@ -176,6 +193,34 @@ def main(argv: list[str] | None = None) -> int:
             _print({"removed_events": core.purge(args.memory_id)})
         elif args.command == "rebuild":
             _print({"projected_events": core.rebuild()})
+        elif args.command == "trace":
+            audit = build_audit(core, args.session)
+            content = (
+                json.dumps(audit, indent=2, ensure_ascii=False)
+                if args.format == "json"
+                else render_trace_markdown(audit)
+            )
+            if args.output:
+                _print({"target": str(write_output(args.output, content))})
+            else:
+                print(content)
+            if args.verify and not audit["ok"]:
+                return 3
+        elif args.command == "graph":
+            audit = build_audit(core, args.session)
+            content = (
+                json.dumps(
+                    {"nodes": audit["nodes"], "edges": audit["edges"]},
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                if args.format == "json"
+                else render_dot(audit)
+            )
+            if args.output:
+                _print({"target": str(write_output(args.output, content))})
+            else:
+                print(content)
         elif args.command == "worker":
             compiler = CodexExecCompiler(context.root)
             result = OneShotWorker(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from agent_memory.compiler import (
     validate_compiler_output,
 )
 from agent_memory.models import (
+    CandidateOperation,
     CaptureCoverage,
     CompilerJob,
     EvidenceAuthority,
@@ -120,3 +122,31 @@ def test_codex_executor_uses_ephemeral_read_only_isolation(tmp_path):
     assert "--output-schema" in command
     assert captured["env"]["AGENT_MEMORY_COMPILER_MODE"] == "1"
     assert candidates[0].kind.value == "Constraint"
+
+
+def test_revise_must_target_a_current_memory_of_the_same_kind():
+    job = replace(
+        make_job(),
+        current_memories=(
+            {
+                "memory_id": "memory-1",
+                "revision": 1,
+                "kind": "Constraint",
+                "claim": "Use Decimal",
+                "status": "active",
+                "authority": "explicit_user",
+                "anchors": [],
+            },
+        ),
+    )
+    payload = valid_output()
+    payload["candidates"][0].update(
+        {"operation": "revise", "target_memory_id": "memory-1"}
+    )
+    candidate = validate_compiler_output(job, payload)[0]
+    assert candidate.operation is CandidateOperation.REVISE
+    assert candidate.target_memory_id == "memory-1"
+
+    payload["candidates"][0]["target_memory_id"] = "unknown"
+    with pytest.raises(CompilerValidationError, match="current memory"):
+        validate_compiler_output(job, payload)

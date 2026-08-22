@@ -13,6 +13,15 @@ BENCHMARK_ID = "repo-evolution"
 BENCHMARK_VERSION = "0.1.0-draft.1"
 SCHEMA_VERSION = 1
 PROTOCOL_STATUS = "draft"
+EVIDENCE_FILES = (
+    "input.json",
+    "capture.json",
+    "storage-before.json",
+    "storage-after.json",
+    "retrieval.json",
+    "observation.json",
+)
+TEXT_EVIDENCE_FILES = ("delivered-context.txt", "first-action.patch", "test.log")
 
 
 def load_spec() -> tuple[dict[str, Any], dict[str, str], dict[str, Any]]:
@@ -104,6 +113,44 @@ def materialize(workspace: Path, scenario: dict[str, Any]) -> list[str]:
     return commits
 
 
+def initialize_execution_evidence(
+    output_dir: Path,
+    workspace: Path,
+    scenario: dict[str, Any],
+    plan: dict[str, Any],
+) -> Path:
+    """Create explicit, non-fabricated evidence slots for a v0 execution run."""
+
+    if output_dir.exists() and any(output_dir.iterdir()):
+        raise FileExistsError(f"Refusing to overwrite existing run: {output_dir}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    run_manifest = {
+        **plan,
+        "workspace": str(workspace.resolve()),
+        "execution_status": "awaiting_agent",
+    }
+    manifest = output_dir / "manifest.json"
+    manifest.write_text(json.dumps(run_manifest, indent=2), encoding="utf-8")
+    for phase in scenario["phases"]:
+        phase_dir = output_dir / "phases" / phase["phase_id"]
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        pending = {"phase_id": phase["phase_id"], "status": "not_recorded"}
+        for name in EVIDENCE_FILES:
+            payload = pending
+            if name == "input.json":
+                payload = {
+                    **pending,
+                    "prompt": phase.get("prompt", ""),
+                    "expected_head": phase.get("expected_head"),
+                }
+            (phase_dir / name).write_text(
+                json.dumps(payload, indent=2), encoding="utf-8"
+            )
+        for name in TEXT_EVIDENCE_FILES:
+            (phase_dir / name).write_text("", encoding="utf-8")
+    return manifest
+
+
 def _git(cwd: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", *args],
@@ -122,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         "--condition", choices=[f"C{i}" for i in range(6)], required=True
     )
     parser.add_argument("--workspace", type=Path)
+    parser.add_argument("--results-dir", type=Path)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     scenario, conditions, _ = load_spec()
@@ -134,7 +182,13 @@ def main(argv: list[str] | None = None) -> int:
     plan["commits"] = materialize(args.workspace, scenario)
     manifest = args.workspace / "benchmark-manifest.json"
     manifest.write_text(json.dumps(plan, indent=2), encoding="utf-8")
-    print(json.dumps({"workspace": str(args.workspace), **plan}, indent=2))
+    result = {"workspace": str(args.workspace), **plan}
+    if args.results_dir is not None:
+        evidence_manifest = initialize_execution_evidence(
+            args.results_dir, args.workspace, scenario, plan
+        )
+        result["evidence_manifest"] = str(evidence_manifest)
+    print(json.dumps(result, indent=2))
     return 0
 
 

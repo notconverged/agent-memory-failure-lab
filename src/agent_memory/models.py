@@ -21,6 +21,10 @@ class MemoryKind(StringEnum):
     PROJECT_FACT = "ProjectFact"
     FAILURE = "Failure"
 
+class CandidateOperation(StringEnum):
+    CREATE = "create"
+    REVISE = "revise"
+
 
 class MemoryStatus(StringEnum):
     PROPOSED = "proposed"
@@ -99,6 +103,9 @@ class MemoryCandidate:
     confidence: float | None = None
     candidate_id: str = ""
     has_counterevidence: bool = False
+    operation: CandidateOperation = CandidateOperation.CREATE
+    target_memory_id: str | None = None
+    supersedes_memory_ids: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -110,6 +117,9 @@ class MemoryCandidate:
             "confidence": self.confidence,
             "candidate_id": self.candidate_id,
             "has_counterevidence": self.has_counterevidence,
+            "operation": self.operation.value,
+            "target_memory_id": self.target_memory_id,
+            "supersedes_memory_ids": list(self.supersedes_memory_ids),
         }
 
 
@@ -226,6 +236,11 @@ class CompilerJob:
     session_state: SessionStateSnapshot
     created_at: str = field(default_factory=utc_now)
 
+    input_start_event_id: str = ""
+    input_end_event_id: str = ""
+    input_hash: str = ""
+    current_memories: tuple[dict[str, Any], ...] = ()
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "job_id": self.job_id,
@@ -236,4 +251,8 @@ class CompilerJob:
             "evidence_bundle": self.evidence_bundle.to_dict(),
             "session_state": self.session_state.to_dict(),
             "created_at": self.created_at,
+            "input_start_event_id": self.input_start_event_id,
+            "input_end_event_id": self.input_end_event_id,
+            "input_hash": self.input_hash,
+            "current_memories": list(self.current_memories),
         }

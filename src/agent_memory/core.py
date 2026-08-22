@@ -30,6 +30,7 @@ class MemoryCore:
         MemoryStatus.PROPOSED: {
             MemoryStatus.ACTIVE,
             MemoryStatus.REJECTED,
+            MemoryStatus.SUPERSEDED,
             MemoryStatus.CONFLICTED,
             MemoryStatus.UNPROVABLE,
             MemoryStatus.TOMBSTONED,
@@ -304,10 +305,26 @@ class MemoryCore:
             )
         )
 
-    def queue_compiler_job(self, job: CompilerJob) -> None:
+    def queue_compiler_job(self, job: CompilerJob) -> bool:
         if job.repository_id != self.repository_id or job.branch != self.branch:
             raise ValueError("Compiler job scope does not match this core")
+        if job.input_hash:
+            existing = self.store.compiler_input_status(job.input_hash)
+            if existing:
+                if existing["status"] == "failed":
+                    self._commit(
+                        self._event(
+                            "compiler_job_retried",
+                            {
+                                "job_id": existing["job_id"],
+                                "input_hash": job.input_hash,
+                            },
+                        )
+                    )
+                    return True
+                return False
         self._commit(self._event("compiler_job_queued", job.to_dict()))
+        return True
 
     def finish_compiler_job(
         self,
@@ -324,6 +341,23 @@ class MemoryCore:
                     "status": status,
                     "candidates": candidates or [],
                     "error": redact_text(error or "", 2_000) or None,
+                },
+            )
+        )
+
+    def record_reconciliation_checkpoint(
+        self,
+        head: str,
+        worktree_hash: str,
+        changed_targets: list[str],
+    ) -> None:
+        self._commit(
+            self._event(
+                "reconciliation_checkpoint_saved",
+                {
+                    "head": head,
+                    "worktree_hash": worktree_hash,
+                    "changed_targets": sorted(set(changed_targets)),
                 },
             )
         )

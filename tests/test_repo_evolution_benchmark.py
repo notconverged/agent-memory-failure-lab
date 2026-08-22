@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from scripts.run_repo_evolution import build_plan, load_spec, materialize
+from scripts.run_repo_evolution import (
+    build_plan,
+    initialize_execution_evidence,
+    load_spec,
+    materialize,
+)
 
 pytestmark = pytest.mark.evaluation
 
@@ -49,3 +56,20 @@ def test_run_plan_records_version_contract_and_repository_commit():
     assert plan["product_version"] == "0.1.0"
     assert len(plan["git_commit"]) == 40
     assert plan["agent_executed"] is False
+
+
+def test_execution_evidence_slots_are_explicitly_pending(tmp_path):
+    scenario, conditions, _ = load_spec()
+    workspace = tmp_path / "scenario"
+    materialize(workspace, scenario)
+    plan = build_plan(scenario, conditions, "C3")
+    output_dir = tmp_path / "run"
+
+    manifest = initialize_execution_evidence(output_dir, workspace, scenario, plan)
+
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    assert payload["execution_status"] == "awaiting_agent"
+    phase = output_dir / "phases" / scenario["phases"][0]["phase_id"]
+    capture = json.loads((phase / "capture.json").read_text(encoding="utf-8"))
+    assert capture["status"] == "not_recorded"
+    assert (phase / "first-action.patch").read_text(encoding="utf-8") == ""

@@ -10,15 +10,16 @@ from pathlib import Path
 from typing import Any
 
 from agent_memory.core import MemoryCore
+from agent_memory.evidence import classify_codex_event
 from agent_memory.models import (
     CaptureCoverage,
     CompilerJob,
-    EvidenceAuthority,
     EvidenceBundle,
     EvidenceRef,
     SessionStateSnapshot,
 )
 from agent_memory.paths import default_data_root, discover_repository
+from agent_memory.reconciler import Reconciler
 from agent_memory.redaction import content_hash, redact_text
 from agent_memory.router import ContextRouter
 
@@ -82,9 +83,16 @@ def handle_hook(payload: dict[str, Any], data_root: Path | None = None) -> dict:
                 return {}
         if event_name in SEMANTIC_BOUNDARIES:
             core.ingest_spool()
+            try:
+                Reconciler(core).reconcile_repository(context.root, context.head)
+            except Exception as error:
+                core.capture_event(
+                    "ReconciliationUnavailable",
+                    {"error": str(error), "head": context.head},
+                )
+                core.ingest_spool()
             job = build_compiler_job(core, context.head, session_id)
-            if job is not None:
-                core.queue_compiler_job(job)
+            if job is not None and core.queue_compiler_job(job):
                 launch_worker(data_root or default_data_root(), cwd)
         return {}
     finally:
@@ -94,34 +102,39 @@ def handle_hook(payload: dict[str, Any], data_root: Path | None = None) -> dict:
 def build_compiler_job(
     core: MemoryCore, head: str, session_id: str
 ) -> CompilerJob | None:
-    events = [
+    session_events = [
         event
         for event in core.event_log.iter_events()
         if event.event_type.startswith("codex_")
-    ][-100:]
+        and str(event.payload.get("session_id", session_id)) == session_id
+    ]
+    if not session_events:
+        return None
+
+    last_cursor = core.store.get_processing_cursor(
+        core.repository_id, core.branch, session_id
+    )
+    start_index = 0
+    if last_cursor:
+        for index, event in enumerate(session_events):
+            if event.event_id == last_cursor:
+                start_index = index + 1
+                break
+    events = session_events[start_index : start_index + 100]
     if not events:
         return None
-    last_cursor = core.store.connection.execute(
-        "SELECT cursor FROM compiler_jobs ORDER BY created_at DESC LIMIT 1"
-    ).fetchone()
-    if last_cursor and last_cursor[0] == events[-1].event_id:
-        return None
+
     evidence: list[EvidenceRef] = []
     observed: set[str] = set()
     summaries: list[str] = []
     for event in events:
         source = event.event_type.removeprefix("codex_")
         observed.add(source)
-        authority = (
-            EvidenceAuthority.EXPLICIT_USER
-            if source == "UserPromptSubmit"
-            else EvidenceAuthority.TOOL_RESULT
-        )
         summary = redact_text(json.dumps(event.payload, ensure_ascii=False), 2_000)
         evidence.append(
             EvidenceRef(
                 event.event_id,
-                authority,
+                classify_codex_event(source, event.payload),
                 source,
                 event.event_id,
                 summary,
@@ -130,6 +143,7 @@ def build_compiler_job(
             )
         )
         summaries.append(summary)
+
     expected = {"UserPromptSubmit", "PostToolUse"}
     gaps = expected - observed
     coverage = CaptureCoverage(
@@ -138,10 +152,10 @@ def build_compiler_job(
         tuple(sorted(observed)),
         tuple(sorted(gaps)),
     )
-    cursor = events[-1].event_id
+    end_event_id = events[-1].event_id
     bundle = EvidenceBundle(
         f"bundle-{uuid.uuid4().hex}",
-        cursor,
+        end_event_id,
         core.repository_id,
         core.branch,
         head,
@@ -150,14 +164,51 @@ def build_compiler_job(
         tuple(summaries),
     )
     state = SessionStateSnapshot(session_id, "Semantic boundary", observed_head=head)
+    current_memories = tuple(
+        {
+            "memory_id": item["memory_id"],
+            "revision": item["revision"],
+            "kind": item["kind"],
+            "claim": item["claim"],
+            "status": item["status"],
+            "authority": item["authority"],
+            "anchors": item["anchors"],
+        }
+        for item in core.store.list_current(
+            core.repository_id, core.branch, base_branch=core.base_branch
+        )[:100]
+    )
+    input_hash = content_hash(
+        json.dumps(
+            {
+                "repository_id": core.repository_id,
+                "branch": core.branch,
+                "session_id": session_id,
+                "head": head,
+                "events": [event.event_id for event in events],
+                "memories": [
+                    [item["memory_id"], item["revision"]] for item in current_memories
+                ],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    existing = core.store.compiler_input_status(input_hash)
+    if existing and existing["status"] != "failed":
+        return None
     return CompilerJob(
-        f"job-{uuid.uuid4().hex}",
-        core.repository_id,
-        core.branch,
-        cursor,
-        head,
-        bundle,
-        state,
+        job_id=f"job-{uuid.uuid4().hex}",
+        repository_id=core.repository_id,
+        branch=core.branch,
+        cursor=end_event_id,
+        head=head,
+        evidence_bundle=bundle,
+        session_state=state,
+        input_start_event_id=events[0].event_id,
+        input_end_event_id=end_event_id,
+        input_hash=input_hash,
+        current_memories=current_memories,
     )
 
 

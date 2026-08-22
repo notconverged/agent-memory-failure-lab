@@ -10,6 +10,7 @@ from typing import Any, Protocol
 
 from agent_memory.models import (
     Anchor,
+    CandidateOperation,
     CompilerJob,
     EvidenceAuthority,
     MemoryCandidate,
@@ -77,6 +78,16 @@ OUTPUT_SCHEMA: dict[str, Any] = {
                                 },
                             },
                         },
+                    },
+                    "operation": {
+                        "type": "string",
+                        "enum": [item.value for item in CandidateOperation],
+                    },
+                    "target_memory_id": {"type": ["string", "null"]},
+                    "supersedes_memory_ids": {
+                        "type": "array",
+                        "maxItems": 20,
+                        "items": {"type": "string"},
                     },
                     "has_counterevidence": {"type": "boolean"},
                 },
@@ -172,6 +183,14 @@ class CodexExecCompiler:
                 "Failure must retain its environment, attempt, and outcome conditions.",
                 "Use only supplied evidence_ids; never invent evidence or authority.",
                 "Report counterevidence instead of resolving it silently.",
+                (
+                    "Use revise only for an existing memory_id supplied in "
+                    "current_memories."
+                ),
+                (
+                    "List superseded current memory IDs explicitly; never hide "
+                    "a normative policy pivot by creating an unrelated fact."
+                ),
             ],
             "job": job.to_dict(),
         }
@@ -196,6 +215,7 @@ def validate_compiler_output(
         raise CompilerValidationError("candidates must be a bounded array")
 
     evidence_by_id = {item.evidence_id: item for item in job.evidence_bundle.evidence}
+    current_by_id = {item["memory_id"]: item for item in job.current_memories}
     candidates: list[MemoryCandidate] = []
     seen_ids: set[str] = set()
     for raw in raw_candidates:
@@ -222,6 +242,37 @@ def validate_compiler_output(
         counter = raw.get("has_counterevidence")
         if not isinstance(counter, bool):
             raise CompilerValidationError("has_counterevidence must be boolean")
+        try:
+            operation = CandidateOperation(raw.get("operation", "create"))
+        except ValueError as error:
+            raise CompilerValidationError("unsupported candidate operation") from error
+        target_memory_id = raw.get("target_memory_id")
+        if target_memory_id is not None and not isinstance(target_memory_id, str):
+            raise CompilerValidationError("target_memory_id must be a string or null")
+        if operation is CandidateOperation.REVISE:
+            if not target_memory_id or target_memory_id not in current_by_id:
+                raise CompilerValidationError("revise target must be a current memory")
+            if current_by_id[target_memory_id]["kind"] != kind.value:
+                raise CompilerValidationError("revise cannot change memory kind")
+        elif target_memory_id is not None:
+            raise CompilerValidationError("create cannot set target_memory_id")
+        supersedes = raw.get("supersedes_memory_ids", [])
+        if (
+            not isinstance(supersedes, list)
+            or len(supersedes) > 20
+            or any(not isinstance(item, str) for item in supersedes)
+        ):
+            raise CompilerValidationError(
+                "supersedes_memory_ids must be bounded strings"
+            )
+        if len(set(supersedes)) != len(supersedes):
+            raise CompilerValidationError("supersedes_memory_ids must be unique")
+        if any(item not in current_by_id for item in supersedes):
+            raise CompilerValidationError("candidate supersedes unknown memory")
+        if target_memory_id in supersedes:
+            raise CompilerValidationError(
+                "candidate cannot supersede its revise target"
+            )
         candidates.append(
             MemoryCandidate(
                 candidate_id=candidate_id,
@@ -231,6 +282,9 @@ def validate_compiler_output(
                 evidence=tuple(evidence_by_id[item] for item in evidence_ids),
                 anchors=anchors,
                 has_counterevidence=counter,
+                operation=operation,
+                target_memory_id=target_memory_id,
+                supersedes_memory_ids=tuple(supersedes),
             )
         )
     return candidates

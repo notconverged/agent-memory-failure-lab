@@ -102,6 +102,35 @@ CREATE TABLE IF NOT EXISTS compiler_jobs (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS compiler_inputs (
+    input_hash TEXT PRIMARY KEY,
+    job_id TEXT NOT NULL UNIQUE,
+    repository_id TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    start_event_id TEXT NOT NULL,
+    end_event_id TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS processing_cursors (
+    repository_id TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    consumer TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (repository_id, branch, session_id, consumer)
+);
+
+CREATE TABLE IF NOT EXISTS reconciliation_checkpoints (
+    repository_id TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    head TEXT NOT NULL,
+    worktree_hash TEXT NOT NULL,
+    changed_targets_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (repository_id, branch)
+);
 
 CREATE TABLE IF NOT EXISTS deliveries (
     delivery_id TEXT PRIMARY KEY,
@@ -363,6 +392,31 @@ class MemoryStore:
                 event.occurred_at,
             ),
         )
+        input_hash = value.get("input_hash", "")
+        if input_hash:
+            self.connection.execute(
+                """
+                INSERT OR IGNORE INTO compiler_inputs VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    input_hash,
+                    value["job_id"],
+                    event.repository_id,
+                    event.branch,
+                    value["session_state"]["session_id"],
+                    value.get("input_start_event_id", ""),
+                    value.get("input_end_event_id", value["cursor"]),
+                ),
+            )
+
+    def _on_compiler_job_retried(self, event: EventEnvelope) -> None:
+        self.connection.execute(
+            """
+            UPDATE compiler_jobs SET status='pending', error=NULL, updated_at=?
+            WHERE job_id=?
+            """,
+            (event.occurred_at, event.payload["job_id"]),
+        )
 
     def _on_compiler_job_finished(self, event: EventEnvelope) -> None:
         value = event.payload
@@ -377,6 +431,53 @@ class MemoryStore:
                 value.get("error"),
                 event.occurred_at,
                 value["job_id"],
+            ),
+        )
+        if value["status"] == "completed":
+            cursor = self.connection.execute(
+                """
+                SELECT repository_id, branch, session_id, end_event_id
+                FROM compiler_inputs WHERE job_id=?
+                """,
+                (value["job_id"],),
+            ).fetchone()
+            if cursor:
+                self.connection.execute(
+                    """
+                    INSERT INTO processing_cursors VALUES (?, ?, ?, 'compiler', ?, ?)
+                    ON CONFLICT(repository_id, branch, session_id, consumer)
+                    DO UPDATE SET event_id=excluded.event_id,
+                                  updated_at=excluded.updated_at
+                    """,
+                    (
+                        cursor["repository_id"],
+                        cursor["branch"],
+                        cursor["session_id"],
+                        cursor["end_event_id"],
+                        event.occurred_at,
+                    ),
+                )
+
+    def _on_reconciliation_checkpoint_saved(
+        self, event: EventEnvelope
+    ) -> None:
+        value = event.payload
+        self.connection.execute(
+            """
+            INSERT INTO reconciliation_checkpoints VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(repository_id, branch) DO UPDATE SET
+                head=excluded.head,
+                worktree_hash=excluded.worktree_hash,
+                changed_targets_json=excluded.changed_targets_json,
+                updated_at=excluded.updated_at
+            """,
+            (
+                event.repository_id,
+                event.branch,
+                value["head"],
+                value["worktree_hash"],
+                json.dumps(value.get("changed_targets", []), ensure_ascii=False),
+                event.occurred_at,
             ),
         )
 
@@ -548,6 +649,98 @@ class MemoryStore:
             (limit,),
         ).fetchall()
         return [json.loads(row[0]) for row in rows]
+    def has_compiler_input(self, input_hash: str) -> bool:
+        if not input_hash:
+            return False
+        row = self.connection.execute(
+            "SELECT 1 FROM compiler_inputs WHERE input_hash=?", (input_hash,)
+        ).fetchone()
+        return row is not None
+
+    def compiler_input_status(self, input_hash: str) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            """
+            SELECT j.job_id, j.status, j.input_json
+            FROM compiler_inputs i
+            JOIN compiler_jobs j ON j.job_id=i.job_id
+            WHERE i.input_hash=?
+            """,
+            (input_hash,),
+        ).fetchone()
+        if not row:
+            return None
+        value = dict(row)
+        value["input"] = json.loads(value.pop("input_json"))
+        return value
+
+    def get_processing_cursor(
+        self,
+        repository_id: str,
+        branch: str,
+        session_id: str,
+        consumer: str = "compiler",
+    ) -> str | None:
+        row = self.connection.execute(
+            """
+            SELECT event_id FROM processing_cursors
+            WHERE repository_id=? AND branch=? AND session_id=? AND consumer=?
+            """,
+            (repository_id, branch, session_id, consumer),
+        ).fetchone()
+        return str(row[0]) if row else None
+
+    def get_reconciliation_checkpoint(
+        self, repository_id: str, branch: str
+    ) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            """
+            SELECT * FROM reconciliation_checkpoints
+            WHERE repository_id=? AND branch=?
+            """,
+            (repository_id, branch),
+        ).fetchone()
+        if not row:
+            return None
+        value = dict(row)
+        value["changed_targets"] = json.loads(value.pop("changed_targets_json"))
+        return value
+
+    def compiler_jobs_for_session(self, session_id: str) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT * FROM compiler_jobs ORDER BY created_at"
+        ).fetchall()
+        result = []
+        for row in rows:
+            value = dict(row)
+            input_value = json.loads(value["input_json"])
+            if input_value["session_state"]["session_id"] == session_id:
+                value["input"] = input_value
+                value["output"] = json.loads(value["output_json"] or "[]")
+                result.append(value)
+        return result
+
+    def deliveries_for_session(self, session_id: str) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT * FROM deliveries WHERE session_id=? ORDER BY delivered_at",
+            (session_id,),
+        ).fetchall()
+        result = []
+        for row in rows:
+            value = dict(row)
+            value["revisions"] = json.loads(value.pop("revisions_json"))
+            result.append(value)
+        return result
+
+    def all_dependency_edges(self) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT * FROM dependency_edges ORDER BY created_at"
+        ).fetchall()
+        result = []
+        for row in rows:
+            value = dict(row)
+            value["evidence"] = json.loads(value.pop("evidence_json"))
+            result.append(value)
+        return result
 
     def active_memory_dependents(
         self, repository_id: str, branch: str, memory_id: str
@@ -623,6 +816,9 @@ class MemoryStore:
             "memories",
             "repositories",
             "compiler_jobs",
+            "compiler_inputs",
+            "processing_cursors",
+            "reconciliation_checkpoints",
             "leases",
         )
         with self.connection:

@@ -79,7 +79,7 @@
           {
             "type": "command",
             "command": "python -m agent_memory.codex_hook",
-            "timeout": 10
+            "timeout": 3
           }
         ]
       }

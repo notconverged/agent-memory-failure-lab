@@ -68,11 +68,14 @@ Repo Evolution 才能产生产品效果证据。详见
 - strict/hybrid policy、Reconciler 和 Router；
 - CLI、MCP、Markdown Inspector 和 Codex plugin；
 - 隔离 Compiler、one-shot worker 和确定性测试；
-- Repo Evolution specification、gold 和 Git materializer。
+- Repo Evolution specification、gold、Git materializer 和非伪造 evidence slots；
+- 增量 compiler cursor、幂等 input hash、create/revise/supersede 生命周期；
+- Git reconciliation、端到端 trace 与 JSON/DOT memory graph；
+- 六系统竞品协议、隔离环境声明、checkpoint/resume 和评分器。
 
 尚未完成：
 
-- Repo Evolution Agent execution adapter 与自动评分闭环；
+- 六个系统的真实 S0–S4 人工/adapter 执行与复核；
 - C0–C5 pilot、protocol freeze 和 confirmation runs；
 - 真实长期 dogfood、竞品统一体验和失败样例积累；
 - payload retention compaction。
@@ -118,12 +121,56 @@ python scripts/run_repo_evolution.py `
 
 该命令只生成 snapshots 和 manifest，不调用模型。
 
+## 三阶段实操入口
+
+三类内容分开保存：`blogs/` 是全过程日志，`docs/` 是结构化材料，`results/runs/` 是被 Git 忽略的原始证据；第三方数据、论文和隔离 workspace 位于 `.local-lab/`。
+
+1. 阶段一：从 `docs/literature/_paper-note-template.md` 独立阅读五篇论文，PDF 放入 `.local-lab/papers/`，过程同步写入博客03。
+2. 阶段二：按 `environments/README.md` 创建竞品环境，再使用 `scripts/run_competitor_trial.py` 生成独立 run、逐阶段 checkpoint，并用 `scripts/score_competitor_trial.py` 评分。
+3. 阶段三：在隔离 Repo Evolution workspace 中 dogfood v0，用 trace 和 graph 检查 event → job → memory → revision → ref → anchor → delivery。
+
+准备一次竞品 run：
+
+```powershell
+conda run -n agent-memory-failure-lab `
+  python scripts/run_competitor_trial.py prepare `
+  --system mem0 --round round-01 --fresh
+```
+
+为 v0 创建真实 Git snapshots 与空白证据位（不会伪造 agent 执行结果）：
+
+```powershell
+python scripts/run_repo_evolution.py `
+  --condition C3 `
+  --workspace .local-lab/worktrees/v0-<run-id> `
+  --results-dir results/runs/v0-chain/<run-id>
+```
+
+审计某个实际 session：
+
+```powershell
+agent-memory trace --session <session-id> --verify `
+  --output results/runs/v0-chain/<run-id>/trace.json
+agent-memory graph --session <session-id> --format dot `
+  --output results/runs/v0-chain/<run-id>/memory-graph.dot
+```
+
+`trace --verify` 非零退出表示审计检查失败。结果目录中的 `not_recorded` / `not_observed` 必须通过真实运行证据替换，不能直接当作成功。
+
+详细入口：
+
+- [博客索引](blogs/README.md)
+- [论文阅读目录](docs/literature/README.md)
+- [环境与重装](environments/README.md)
+- [竞品协议](docs/competitor-trials/protocol.md)
+- [v0 全链路审计模板](docs/dogfood/v0-chain-audit.md)
+
 ## 验证
 
 ```powershell
 python -m ruff check src scripts tests
-python -m pytest -q
-python -m pytest -q -m evaluation
+python -m pytest -q --basetemp=results/runs/_tmp/pytest
+python -m pytest -q --basetemp=results/runs/_tmp/pytest -m evaluation
 ```
 
 ## 文档入口
