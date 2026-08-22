@@ -2,7 +2,15 @@
 
 ## Status
 
-Repo Evolution is the only active product benchmark. Its current version is
+The active external gap protocol is `benchmarks/execution_state`, version
+`0.1.0-draft.1`. It observes unchanged v0, Mem0, and Graphiti against a neutral
+MAGE-inspired execution-state schema. It reports black-box retrieval metrics
+and capability statuses, not one total product score or live-Agent performance.
+The v0 adapter uses hook-compatible synthetic replay through the production
+hook, not a live Codex session.
+
+Repo Evolution remains the durable-memory C0-C5 compatibility entrypoint.
+Its current version is
 `0.1.0-draft.1`, with schema version `1` and protocol status `draft`.
 
 The current runner validates the specification and materializes reproducible
