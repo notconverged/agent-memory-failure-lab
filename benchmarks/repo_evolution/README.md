@@ -4,6 +4,13 @@
 - Schema: `1`
 - Protocol status: `draft`
 
+This directory is the durable-memory compatibility entrypoint for the
+canonical `execution_state/scenarios/coding/ledger-rounding-v2.json` scenario.
+`scenario.json` is a descriptor; the runner resolves its five Git phases from
+that canonical file. Existing C0-C5 semantics and durable-memory gold remain
+unchanged. C0-C5 do not map to the reference-only A0-A4 variants.
+
+
 This executable synthetic scenario uses a multi-session pivot/filler structure
 inspired by MemoryCode and correction/commit patterns calibrated from SWE-chat.
 It does not copy public sample text. Each phase is a complete repository snapshot

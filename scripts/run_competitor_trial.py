@@ -14,6 +14,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+from scripts.run_repo_evolution import load_spec as load_repo_spec  # noqa: E402
 
 BENCHMARK = ROOT / "benchmarks" / "repo_evolution"
 TRIAL = BENCHMARK / "trials" / "competitor_v1"
@@ -195,7 +196,7 @@ def verify_system(system: str) -> dict[str, Any]:
 
 
 def phase_by_id(phase_id: str) -> dict[str, Any]:
-    scenario = load_json(BENCHMARK / "scenario.json")
+    scenario, _, _ = load_repo_spec()
     for phase in scenario["phases"]:
         if phase["phase_id"] == phase_id:
             return phase
@@ -276,7 +277,7 @@ def create_slots(target: Path, scenario: dict[str, Any], prompts: dict) -> None:
 def prepare(args: argparse.Namespace) -> dict[str, Any]:
     protocol = load_json(TRIAL / "protocol.json")
     systems = load_json(TRIAL / "systems.json")
-    scenario = load_json(BENCHMARK / "scenario.json")
+    scenario, _, _ = load_repo_spec()
     prompts = load_json(TRIAL / "prompts.json")
     if args.system not in systems:
         raise ValueError(f"Unsupported system: {args.system}")

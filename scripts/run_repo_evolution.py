@@ -25,7 +25,24 @@ TEXT_EVIDENCE_FILES = ("delivered-context.txt", "first-action.patch", "test.log"
 
 
 def load_spec() -> tuple[dict[str, Any], dict[str, str], dict[str, Any]]:
-    scenario = json.loads((BENCHMARK / "scenario.json").read_text(encoding="utf-8"))
+    descriptor = json.loads(
+        (BENCHMARK / "scenario.json").read_text(encoding="utf-8")
+    )
+    canonical_path = (BENCHMARK / descriptor["canonical_scenario"]).resolve()
+    canonical = json.loads(canonical_path.read_text(encoding="utf-8"))
+    scenario = {
+        **descriptor,
+        "canonical_scenario_id": canonical["scenario_id"],
+        "phases": [
+            {
+                "phase_id": session["phase_id"],
+                "session": index,
+                "instruction": session["instruction"],
+                "files": session["files"],
+            }
+            for index, session in enumerate(canonical["sessions"])
+        ],
+    }
     conditions = json.loads((BENCHMARK / "conditions.json").read_text(encoding="utf-8"))
     gold = json.loads((BENCHMARK / "gold.json").read_text(encoding="utf-8"))
     validate_spec(scenario, conditions, gold)

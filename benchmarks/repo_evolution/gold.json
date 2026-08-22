@@ -4,6 +4,7 @@
   "schema_version": 1,
   "protocol_status": "draft",
   "scenario_id": "ledger-rounding-evolution-v1",
+  "canonical_execution_gold": "../execution_state/gold/ledger-rounding-v2.json",
   "expected_memories": [
     {
       "gold_id": "M1",
