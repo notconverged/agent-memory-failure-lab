@@ -1,0 +1,9 @@
+name: amlab-mem0
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - mem0ai
+      - sentence-transformers

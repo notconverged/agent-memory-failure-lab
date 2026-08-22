@@ -1,0 +1,37 @@
+{
+  "codex-native": {
+    "mode": "manual",
+    "environment": null,
+    "contamination": "existing_global_history"
+  },
+  "claude-mem": {
+    "mode": "manual",
+    "environment": "node-bun-native",
+    "data_env_var": "CLAUDE_MEM_DATA_DIR"
+  },
+  "basic-memory": {
+    "mode": "manual",
+    "environment": "amlab-basic-memory",
+    "import_name": "basic_memory",
+    "port": 18080
+  },
+  "mem0": {
+    "mode": "adapter",
+    "environment": "amlab-mem0",
+    "import_name": "mem0"
+  },
+  "letta": {
+    "mode": "adapter",
+    "environment": "amlab-letta",
+    "import_name": "letta_client",
+    "required_env": [
+      "LETTA_API_KEY"
+    ]
+  },
+  "graphiti": {
+    "mode": "adapter",
+    "environment": "amlab-graphiti",
+    "import_name": "graphiti_core",
+    "data_env_var": "KUZU_DB"
+  }
+}

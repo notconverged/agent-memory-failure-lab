@@ -1,0 +1,32 @@
+{
+  "protocol_id": "competitor-v1",
+  "benchmark_id": "repo-evolution",
+  "benchmark_version": "0.1.0-draft.1",
+  "round": "round-01",
+  "systems": [
+    "codex-native",
+    "claude-mem",
+    "basic-memory",
+    "mem0",
+    "letta",
+    "graphiti"
+  ],
+  "phases": [
+    "S0_baseline",
+    "S1_decimal_policy",
+    "S2_temporary_failed_attempt",
+    "S3_normative_pivot",
+    "S4_reentry"
+  ],
+  "required_actions": [
+    "install_or_verify",
+    "first_write",
+    "inspect_backing_store",
+    "policy_pivot",
+    "fresh_session_recall",
+    "edit_or_invalidate",
+    "restart"
+  ],
+  "raw_result_root": "results/runs/competitor-trials",
+  "local_data_root": ".local-lab/competitors"
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Competitor trial score",
+  "type": "object",
+  "required": [
+    "system",
+    "run_id",
+    "total",
+    "dimensions",
+    "unknown"
+  ],
+  "properties": {
+    "system": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "total": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "unknown": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

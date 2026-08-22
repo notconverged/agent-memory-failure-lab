@@ -1,0 +1,9 @@
+name: amlab-graphiti
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - graphiti-core[kuzu]
+      - sentence-transformers

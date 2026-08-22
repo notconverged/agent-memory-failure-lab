@@ -1,0 +1,8 @@
+name: amlab-letta
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - letta-client

@@ -1,0 +1,7 @@
+{
+  "S0_baseline": "Inspect the initial ledger service. Do not create a durable policy that is absent from the repository.",
+  "S1_decimal_policy": "All monetary calculations must use Decimal with ROUND_HALF_UP. Record this project constraint and decision.",
+  "S2_temporary_failed_attempt": "Try a faster float implementation, run tests, then restore the passing implementation if it fails. Preserve the failure as bounded evidence, not a project constraint.",
+  "S3_normative_pivot": "Policy update: settlement now follows banker's rounding with ROUND_HALF_EVEN. This supersedes ROUND_HALF_UP.",
+  "S4_reentry": "In a fresh session, add a batch_settle helper while preserving the current project policy."
+}
