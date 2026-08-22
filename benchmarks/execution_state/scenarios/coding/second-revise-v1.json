@@ -1,0 +1,38 @@
+{
+  "benchmark_id": "execution-state-gap",
+  "benchmark_version": "0.1.0-draft.1",
+  "schema_version": 1,
+  "scenario_id": "second-revise-v1",
+  "description": "Two failed cache-key attempts with direct-child path reuse before a final corrected branch.",
+  "timeline": [
+    {"step_index": 1, "operation": "grow", "step_key": "cache_prefix", "action": "Establish the repository-scoped cache fixture.", "observation": "The baseline cache fixture passes."},
+    {"step_index": 2, "operation": "boundary", "boundary_id": "cache-prefix"},
+    {"step_index": 3, "operation": "compress", "step_key": "summary_cache_prefix", "summary": "The repository-scoped cache fixture is valid."},
+    {"step_index": 4, "operation": "maintain", "summary_step_key": "summary_cache_prefix", "validation": {"test_passed": true, "required_terms": ["cache"], "feedback": "", "revision_target_raw_step_key": null, "revision_target_summary_step_key": null}},
+    {"step_index": 5, "operation": "grow", "step_key": "global_key_attempt", "action": "Use one global cache key named current.", "observation": "Parallel repositories overwrite each other and isolation tests fail."},
+    {"step_index": 6, "operation": "boundary", "boundary_id": "global-key-first"},
+    {"step_index": 7, "operation": "compress", "step_key": "summary_global_wrong_1", "summary": "The global current cache key is safe for all repositories."},
+    {"step_index": 8, "operation": "maintain", "summary_step_key": "summary_global_wrong_1", "validation": {"test_passed": false, "required_terms": ["isolation"], "feedback": "Global key breaks repository isolation.", "revision_target_raw_step_key": "cache_prefix", "revision_target_summary_step_key": "summary_cache_prefix"}},
+    {"step_index": 9, "operation": "revise", "target_raw_step_key": "cache_prefix", "target_summary_step_key": "summary_cache_prefix", "feedback": "Return to the isolated cache boundary."},
+    {"step_index": 10, "operation": "grow", "step_key": "global_key_attempt_reused", "action": "Use one global cache key named current.", "observation": "Parallel repositories overwrite each other and isolation tests fail."},
+    {"step_index": 11, "operation": "boundary", "boundary_id": "global-key-second"},
+    {"step_index": 12, "operation": "compress", "step_key": "summary_global_wrong_2", "summary": "Retrying the global current cache key should now be accepted."},
+    {"step_index": 13, "operation": "maintain", "summary_step_key": "summary_global_wrong_2", "validation": {"test_passed": false, "required_terms": ["isolation"], "feedback": "The repeated global key still fails isolation.", "revision_target_raw_step_key": "cache_prefix", "revision_target_summary_step_key": "summary_cache_prefix"}},
+    {"step_index": 14, "operation": "revise", "target_raw_step_key": "cache_prefix", "target_summary_step_key": "summary_cache_prefix", "feedback": "Start a second corrected sibling branch."},
+    {"step_index": 15, "operation": "grow", "step_key": "scoped_key_solution", "action": "Key the cache by repository id and Git branch.", "observation": "Parallel repository and branch isolation tests pass."},
+    {"step_index": 16, "operation": "boundary", "boundary_id": "scoped-key"},
+    {"step_index": 17, "operation": "compress", "step_key": "summary_scoped_key", "summary": "The current cache key includes repository id and Git branch."},
+    {"step_index": 18, "operation": "maintain", "summary_step_key": "summary_scoped_key", "validation": {"test_passed": true, "required_terms": ["repository", "branch"], "feedback": "", "revision_target_raw_step_key": null, "revision_target_summary_step_key": null}}
+  ],
+  "sessions": [
+    {"session_id": "revise-s0", "phase_id": "S0_cache_prefix", "instruction": "Establish a repository-scoped cache fixture.", "timeline_start": 1, "timeline_end": 4, "files": {"src/cache.py": "def cache_key(repo: str, branch: str) -> str:\n    return f'{repo}:{branch}'\n", "tests/test_cache.py": "from src.cache import cache_key\n\n\ndef test_scoped_key():\n    assert cache_key('a', 'main') != cache_key('b', 'main')\n"}},
+    {"session_id": "revise-s1", "phase_id": "S1_global_key_failure", "instruction": "Evaluate a global cache key and preserve the failure evidence.", "timeline_start": 5, "timeline_end": 9, "files": {"src/cache.py": "def cache_key(repo: str, branch: str) -> str:\n    return f'{repo}:{branch}'\n", "tests/test_cache.py": "from src.cache import cache_key\n\n\ndef test_scoped_key():\n    assert cache_key('a', 'main') != cache_key('b', 'main')\n", "notes/global-key-failure.txt": "The global current key failed repository isolation.\n"}},
+    {"session_id": "revise-s2", "phase_id": "S2_repeated_failure", "instruction": "Confirm that the repeated global-key attempt still fails.", "timeline_start": 10, "timeline_end": 14, "files": {"src/cache.py": "def cache_key(repo: str, branch: str) -> str:\n    return f'{repo}:{branch}'\n", "tests/test_cache.py": "from src.cache import cache_key\n\n\ndef test_scoped_key():\n    assert cache_key('a', 'main') != cache_key('b', 'main')\n", "notes/global-key-failure.txt": "The identical global current attempt failed twice and was rejected.\n"}},
+    {"session_id": "revise-s3", "phase_id": "S3_scoped_solution", "instruction": "Use repository id and Git branch in the cache key.", "timeline_start": 15, "timeline_end": 18, "files": {"src/cache.py": "def cache_key(repo: str, branch: str) -> str:\n    return f'{repo}:{branch}'\n", "tests/test_cache.py": "from src.cache import cache_key\n\n\ndef test_scoped_key():\n    assert cache_key('a', 'main') != cache_key('b', 'main')\n    assert cache_key('a', 'main') != cache_key('a', 'feature')\n"}}
+  ],
+  "product_checkpoints": [
+    {"step_index": 9, "after_session_id": "revise-s1", "kind": "contamination", "query": "What cache key design should the next task use?"},
+    {"step_index": 14, "after_session_id": "revise-s2", "kind": "contamination", "query": "What cache key design is currently valid?"},
+    {"step_index": 18, "after_session_id": "revise-s3", "kind": "final", "query": "State the current cache-key scope and isolation rule."}
+  ]
+}

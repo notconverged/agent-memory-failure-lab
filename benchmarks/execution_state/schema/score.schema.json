@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Execution-state gap score without an overall total",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["system", "scenario_id", "run_id", "run_status", "final_state_correctness", "error_contamination", "advanced"],
+  "properties": {
+    "system": {"type": "string"},
+    "scenario_id": {"type": "string"},
+    "run_id": {"type": "string"},
+    "run_status": {"enum": ["valid", "invalid", "execution_failure"]},
+    "final_state_correctness": {"type": "object"},
+    "error_contamination": {"type": "object"},
+    "advanced": {"type": "object"}
+  }
+}

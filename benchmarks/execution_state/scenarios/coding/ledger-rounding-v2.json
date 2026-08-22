@@ -1,0 +1,100 @@
+{
+  "benchmark_id": "execution-state-gap",
+  "benchmark_version": "0.1.0-draft.1",
+  "schema_version": 1,
+  "scenario_id": "ledger-rounding-v2",
+  "description": "Multi-session ledger policy evolution with a failed float branch and a normative pivot.",
+  "timeline": [
+    {"step_index": 1, "operation": "grow", "step_key": "inspect_initial", "action": "Inspect src/ledger.py and its test.", "observation": "The implementation uses float round and the baseline test passes."},
+    {"step_index": 2, "operation": "boundary", "boundary_id": "initial-inspection"},
+    {"step_index": 3, "operation": "compress", "step_key": "summary_initial", "summary": "Inspected the initial float-based ledger implementation."},
+    {"step_index": 4, "operation": "maintain", "summary_step_key": "summary_initial", "validation": {"test_passed": true, "required_terms": ["ledger", "float"], "feedback": "", "revision_target_raw_step_key": null, "revision_target_summary_step_key": null}},
+
+    {"step_index": 5, "operation": "grow", "step_key": "decimal_half_up", "action": "Implement the explicit Decimal ROUND_HALF_UP policy.", "observation": "The updated test expects 1.01 and passes with Decimal ROUND_HALF_UP."},
+    {"step_index": 6, "operation": "boundary", "boundary_id": "half-up-policy"},
+    {"step_index": 7, "operation": "compress", "step_key": "summary_half_up", "summary": "Ledger settlement now uses Decimal with ROUND_HALF_UP and its policy test passes."},
+    {"step_index": 8, "operation": "maintain", "summary_step_key": "summary_half_up", "validation": {"test_passed": true, "required_terms": ["Decimal", "ROUND_HALF_UP"], "feedback": "", "revision_target_raw_step_key": null, "revision_target_summary_step_key": null}},
+
+    {"step_index": 9, "operation": "grow", "step_key": "float_failed", "action": "Try a faster float implementation.", "observation": "The optimization returns 1.0, fails the policy test, and is reverted."},
+    {"step_index": 10, "operation": "boundary", "boundary_id": "failed-float-attempt"},
+    {"step_index": 11, "operation": "compress", "step_key": "summary_float_wrong", "summary": "Use the faster float implementation as the current ledger policy."},
+    {"step_index": 12, "operation": "maintain", "summary_step_key": "summary_float_wrong", "validation": {"test_passed": false, "required_terms": ["reverted"], "feedback": "Float failed the policy test; restore the last accepted boundary.", "revision_target_raw_step_key": "decimal_half_up", "revision_target_summary_step_key": "summary_half_up"}},
+    {"step_index": 13, "operation": "revise", "target_raw_step_key": "decimal_half_up", "target_summary_step_key": "summary_half_up", "feedback": "Exclude the failed float attempt from active state."},
+
+    {"step_index": 14, "operation": "grow", "step_key": "half_even", "action": "Apply the normative pivot to ROUND_HALF_EVEN.", "observation": "PROJECT_POLICY and tests now require Decimal ROUND_HALF_EVEN; tests pass."},
+    {"step_index": 15, "operation": "boundary", "boundary_id": "half-even-policy"},
+    {"step_index": 16, "operation": "compress", "step_key": "summary_half_even", "summary": "The current ledger policy uses Decimal ROUND_HALF_EVEN and supersedes ROUND_HALF_UP."},
+    {"step_index": 17, "operation": "maintain", "summary_step_key": "summary_half_even", "validation": {"test_passed": true, "required_terms": ["Decimal", "ROUND_HALF_EVEN"], "feedback": "", "revision_target_raw_step_key": null, "revision_target_summary_step_key": null}},
+
+    {"step_index": 18, "operation": "grow", "step_key": "batch_settle", "action": "Add batch_settle while preserving current policy.", "observation": "batch_settle delegates to settle and all ROUND_HALF_EVEN tests pass."},
+    {"step_index": 19, "operation": "boundary", "boundary_id": "batch-helper"},
+    {"step_index": 20, "operation": "compress", "step_key": "summary_batch", "summary": "Added batch_settle on top of the current Decimal ROUND_HALF_EVEN policy."},
+    {"step_index": 21, "operation": "maintain", "summary_step_key": "summary_batch", "validation": {"test_passed": true, "required_terms": ["batch_settle", "ROUND_HALF_EVEN"], "feedback": "", "revision_target_raw_step_key": null, "revision_target_summary_step_key": null}}
+  ],
+  "sessions": [
+    {
+      "session_id": "ledger-s0",
+      "phase_id": "S0_baseline",
+      "instruction": "Inspect the initial ledger service.",
+      "timeline_start": 1,
+      "timeline_end": 4,
+      "files": {
+        "src/ledger.py": "def settle(amount: str) -> str:\n    return str(round(float(amount), 2))\n",
+        "tests/test_ledger.py": "from src.ledger import settle\n\n\ndef test_settle():\n    assert settle('1.005') == '1.00'\n"
+      }
+    },
+    {
+      "session_id": "ledger-s1",
+      "phase_id": "S1_decimal_policy",
+      "instruction": "All monetary calculations must use Decimal with ROUND_HALF_UP.",
+      "timeline_start": 5,
+      "timeline_end": 8,
+      "files": {
+        "PROJECT_POLICY.md": "# Ledger policy\n\nMoney uses Decimal and ROUND_HALF_UP.\n",
+        "src/ledger.py": "from decimal import Decimal, ROUND_HALF_UP\n\n\ndef settle(amount: str) -> str:\n    value = Decimal(amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)\n    return str(value)\n",
+        "tests/test_ledger.py": "from src.ledger import settle\n\n\ndef test_settle_half_up():\n    assert settle('1.005') == '1.01'\n"
+      }
+    },
+    {
+      "session_id": "ledger-s2",
+      "phase_id": "S2_temporary_failed_attempt",
+      "instruction": "Try a float optimization, run tests, and restore the passing code when it fails.",
+      "timeline_start": 9,
+      "timeline_end": 13,
+      "files": {
+        "PROJECT_POLICY.md": "# Ledger policy\n\nMoney uses Decimal and ROUND_HALF_UP.\n",
+        "src/ledger.py": "from decimal import Decimal, ROUND_HALF_UP\n\n\ndef settle(amount: str) -> str:\n    value = Decimal(amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)\n    return str(value)\n",
+        "tests/test_ledger.py": "from src.ledger import settle\n\n\ndef test_settle_half_up():\n    assert settle('1.005') == '1.01'\n",
+        "notes/session-2.txt": "A temporary float optimization returned 1.0, failed the policy test, and was reverted.\n"
+      }
+    },
+    {
+      "session_id": "ledger-s3",
+      "phase_id": "S3_normative_pivot",
+      "instruction": "Policy update: settlement now follows ROUND_HALF_EVEN.",
+      "timeline_start": 14,
+      "timeline_end": 17,
+      "files": {
+        "PROJECT_POLICY.md": "# Ledger policy\n\nMoney uses Decimal and ROUND_HALF_EVEN. This replaces ROUND_HALF_UP.\n",
+        "src/ledger.py": "from decimal import Decimal, ROUND_HALF_EVEN\n\n\ndef settle(amount: str) -> str:\n    value = Decimal(amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)\n    return str(value)\n",
+        "tests/test_ledger.py": "from src.ledger import settle\n\n\ndef test_settle_half_even():\n    assert settle('1.005') == '1.00'\n"
+      }
+    },
+    {
+      "session_id": "ledger-s4",
+      "phase_id": "S4_reentry",
+      "instruction": "Add batch_settle while preserving the current policy.",
+      "timeline_start": 18,
+      "timeline_end": 21,
+      "files": {
+        "PROJECT_POLICY.md": "# Ledger policy\n\nMoney uses Decimal and ROUND_HALF_EVEN. This replaces ROUND_HALF_UP.\n",
+        "src/ledger.py": "from decimal import Decimal, ROUND_HALF_EVEN\n\n\ndef settle(amount: str) -> str:\n    value = Decimal(amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)\n    return str(value)\n\n\ndef batch_settle(amounts: list[str]) -> list[str]:\n    return [settle(amount) for amount in amounts]\n",
+        "tests/test_ledger.py": "from src.ledger import batch_settle, settle\n\n\ndef test_settle_half_even():\n    assert settle('1.005') == '1.00'\n\n\ndef test_batch_settle():\n    assert batch_settle(['1.005', '2.015']) == ['1.00', '2.02']\n"
+      }
+    }
+  ],
+  "product_checkpoints": [
+    {"step_index": 13, "after_session_id": "ledger-s2", "kind": "contamination", "query": "What is the current ledger rounding policy, and what should the next change preserve?"},
+    {"step_index": 21, "after_session_id": "ledger-s4", "kind": "final", "query": "State the current ledger policy and implemented public helpers."}
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "A0": {"compress": true, "maintain": true, "revise": true, "flat": false},
+  "A1": {"compress": false, "maintain": true, "revise": true, "flat": false},
+  "A2": {"compress": true, "maintain": false, "revise": true, "flat": false},
+  "A3": {"compress": true, "maintain": true, "revise": false, "flat": false},
+  "A4": {"compress": false, "maintain": false, "revise": false, "flat": true}
+}

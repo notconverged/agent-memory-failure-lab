@@ -1,0 +1,27 @@
+{
+  "scenario_id": "ledger-rounding-v2",
+  "black_box": {
+    "final_checkpoint": 21,
+    "required_final_assertions": ["Decimal", "ROUND_HALF_EVEN", "batch_settle"],
+    "forbidden_final_assertions": ["current.{0,40}ROUND_HALF_UP", "use.{0,30}float.{0,30}current"],
+    "contamination_checkpoints": {
+      "13": {"forbidden_assertions": ["use.{0,30}float.{0,30}(current|policy)", "float implementation as the current"]}
+    }
+  },
+  "execution_state": {
+    "checkpoints": [
+      {"step_index": 8, "expected_active_raw_step_keys": ["inspect_initial", "decimal_half_up"], "expected_revision_generation": 0},
+      {"step_index": 12, "expected_active_raw_step_keys": ["inspect_initial", "decimal_half_up", "float_failed"], "expected_revision_generation": 0},
+      {"step_index": 13, "expected_active_raw_step_keys": ["inspect_initial", "decimal_half_up"], "expected_revision_generation": 1},
+      {"step_index": 21, "expected_active_raw_step_keys": ["inspect_initial", "decimal_half_up", "half_even", "batch_settle"], "expected_revision_generation": 1}
+    ],
+    "excluded_step_keys_at_final": ["float_failed"],
+    "summary_assertions": [
+      {"step_key": "summary_half_up", "cover_step_keys": ["decimal_half_up"], "must_include": ["Decimal", "ROUND_HALF_UP"]},
+      {"step_key": "summary_half_even", "cover_step_keys": ["half_even"], "must_include": ["Decimal", "ROUND_HALF_EVEN"]},
+      {"step_key": "summary_batch", "cover_step_keys": ["batch_settle"], "must_include": ["batch_settle", "ROUND_HALF_EVEN"]}
+    ],
+    "maintain_decisions": {"4": "pass", "8": "pass", "12": "fail", "17": "pass", "21": "pass"},
+    "node_generations": {"float_failed": 0, "half_even": 1, "batch_settle": 1}
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/agent-memory/execution-state.schema.json",
+  "title": "MAGE-inspired canonical execution state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "as_of_step_index",
+    "nodes",
+    "active_raw_path",
+    "active_summary_path",
+    "compressed_state",
+    "recent_raw",
+    "hints",
+    "effective_active_raw_sequence",
+    "cursor"
+  ],
+  "properties": {
+    "as_of_step_index": {"type": "integer", "minimum": 0},
+    "nodes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/node"}
+    },
+    "active_raw_path": {"$ref": "#/$defs/stringArray"},
+    "active_summary_path": {"$ref": "#/$defs/stringArray"},
+    "compressed_state": {"$ref": "#/$defs/stringArray"},
+    "recent_raw": {"$ref": "#/$defs/stringArray"},
+    "hints": {"$ref": "#/$defs/stringArray"},
+    "effective_active_raw_sequence": {"$ref": "#/$defs/stringArray"},
+    "cursor": {"$ref": "#/$defs/cursor"}
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "step_key",
+        "layer",
+        "parent_id",
+        "created_step_index",
+        "trace_index",
+        "action",
+        "observation",
+        "summary",
+        "cover_node_ids",
+        "validation_status",
+        "diagnostic_note",
+        "revision_generation",
+        "content_hash"
+      ],
+      "properties": {
+        "node_id": {"type": "string", "minLength": 1},
+        "step_key": {"type": "string", "minLength": 1},
+        "layer": {"enum": ["raw", "summary"]},
+        "parent_id": {"type": ["string", "null"]},
+        "created_step_index": {"type": "integer", "minimum": 0},
+        "trace_index": {"type": ["integer", "null"], "minimum": 1},
+        "action": {"type": ["string", "null"]},
+        "observation": {"type": ["string", "null"]},
+        "summary": {"type": ["string", "null"]},
+        "cover_node_ids": {"$ref": "#/$defs/stringArray"},
+        "validation_status": {
+          "enum": ["not_applicable", "pending", "passed", "failed"]
+        },
+        "diagnostic_note": {"type": "string"},
+        "revision_generation": {"type": "integer", "minimum": 0},
+        "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "cursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bottom_node_id",
+        "top_node_id",
+        "last_step_index",
+        "revision_generation"
+      ],
+      "properties": {
+        "bottom_node_id": {"type": ["string", "null"]},
+        "top_node_id": {"type": ["string", "null"]},
+        "last_step_index": {"type": "integer", "minimum": 0},
+        "revision_generation": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

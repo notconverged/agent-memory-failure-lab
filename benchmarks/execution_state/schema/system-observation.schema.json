@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Execution-state system observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["system", "scenario_id", "run_id", "checkpoint", "query_status", "retrieval_text", "capabilities"],
+  "properties": {
+    "system": {"type": "string"},
+    "scenario_id": {"type": "string"},
+    "run_id": {"type": "string"},
+    "checkpoint": {"type": "integer", "minimum": 0},
+    "query_status": {"enum": ["completed", "empty", "error"]},
+    "retrieval_text": {"type": "string"},
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/capability"}
+    }
+  },
+  "$defs": {
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["support_status", "value", "evidence_paths", "derivation", "limitations", "workaround"],
+      "properties": {
+        "support_status": {"enum": ["native", "derived", "not_observable", "unsupported"]},
+        "value": {},
+        "evidence_paths": {"type": "array", "items": {"type": "string"}},
+        "derivation": {"type": "string"},
+        "limitations": {"type": "string"},
+        "workaround": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

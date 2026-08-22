@@ -1,0 +1,31 @@
+{
+  "benchmark_id": "execution-state-gap",
+  "benchmark_version": "0.1.0-draft.1",
+  "schema_version": 1,
+  "scenario_id": "double-branch-v1",
+  "description": "A valid parser prefix, a failed regex branch, and a corrected sibling branch.",
+  "timeline": [
+    {"step_index": 1, "operation": "grow", "step_key": "parser_prefix", "action": "Add a parser fixture for comma-separated ledger rows.", "observation": "The fixture and baseline parser tests pass."},
+    {"step_index": 2, "operation": "boundary", "boundary_id": "parser-prefix"},
+    {"step_index": 3, "operation": "compress", "step_key": "summary_parser_prefix", "summary": "The parser fixture and baseline row parsing are valid."},
+    {"step_index": 4, "operation": "maintain", "summary_step_key": "summary_parser_prefix", "validation": {"test_passed": true, "required_terms": ["parser"], "feedback": "", "revision_target_raw_step_key": null, "revision_target_summary_step_key": null}},
+    {"step_index": 5, "operation": "grow", "step_key": "regex_branch", "action": "Replace csv parsing with a single greedy regex.", "observation": "Quoted commas are split incorrectly and the integration test fails."},
+    {"step_index": 6, "operation": "boundary", "boundary_id": "regex-attempt"},
+    {"step_index": 7, "operation": "compress", "step_key": "summary_regex_wrong", "summary": "The greedy regex is the accepted parser implementation."},
+    {"step_index": 8, "operation": "maintain", "summary_step_key": "summary_regex_wrong", "validation": {"test_passed": false, "required_terms": ["quoted commas"], "feedback": "Regex parsing breaks quoted commas.", "revision_target_raw_step_key": "parser_prefix", "revision_target_summary_step_key": "summary_parser_prefix"}},
+    {"step_index": 9, "operation": "revise", "target_raw_step_key": "parser_prefix", "target_summary_step_key": "summary_parser_prefix", "feedback": "Return to the tested parser boundary."},
+    {"step_index": 10, "operation": "grow", "step_key": "csv_branch", "action": "Use Python csv.reader for ledger rows.", "observation": "Quoted commas and ordinary rows both pass."},
+    {"step_index": 11, "operation": "boundary", "boundary_id": "csv-solution"},
+    {"step_index": 12, "operation": "compress", "step_key": "summary_csv", "summary": "The current parser uses csv.reader and preserves quoted commas."},
+    {"step_index": 13, "operation": "maintain", "summary_step_key": "summary_csv", "validation": {"test_passed": true, "required_terms": ["csv.reader", "quoted commas"], "feedback": "", "revision_target_raw_step_key": null, "revision_target_summary_step_key": null}}
+  ],
+  "sessions": [
+    {"session_id": "branch-s0", "phase_id": "S0_prefix", "instruction": "Establish a tested parser fixture.", "timeline_start": 1, "timeline_end": 4, "files": {"src/parser.py": "def parse_row(row: str) -> list[str]:\n    return row.split(',')\n", "tests/test_parser.py": "from src.parser import parse_row\n\n\ndef test_plain_row():\n    assert parse_row('a,b') == ['a', 'b']\n"}},
+    {"session_id": "branch-s1", "phase_id": "S1_failed_regex", "instruction": "Try a regex parser and inspect the quoted-comma failure.", "timeline_start": 5, "timeline_end": 9, "files": {"src/parser.py": "def parse_row(row: str) -> list[str]:\n    return row.split(',')\n", "tests/test_parser.py": "from src.parser import parse_row\n\n\ndef test_quoted_comma():\n    assert parse_row('a,\"b,c\"') == ['a', 'b,c']\n", "notes/failed-regex.txt": "A greedy regex split quoted commas incorrectly and was rejected.\n"}},
+    {"session_id": "branch-s2", "phase_id": "S2_csv_solution", "instruction": "Use csv.reader and preserve quoted commas.", "timeline_start": 10, "timeline_end": 13, "files": {"src/parser.py": "import csv\n\n\ndef parse_row(row: str) -> list[str]:\n    return next(csv.reader([row]))\n", "tests/test_parser.py": "from src.parser import parse_row\n\n\ndef test_quoted_comma():\n    assert parse_row('a,\"b,c\"') == ['a', 'b,c']\n"}}
+  ],
+  "product_checkpoints": [
+    {"step_index": 9, "after_session_id": "branch-s1", "kind": "contamination", "query": "Which parser implementation should be used for the next change?"},
+    {"step_index": 13, "after_session_id": "branch-s2", "kind": "final", "query": "What is the current parser implementation and what edge case does it preserve?"}
+  ]
+}

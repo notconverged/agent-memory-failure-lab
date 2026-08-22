@@ -1,0 +1,20 @@
+{
+  "scenario_id": "double-branch-v1",
+  "black_box": {
+    "final_checkpoint": 13,
+    "required_final_assertions": ["csv\\.reader", "quoted commas"],
+    "forbidden_final_assertions": ["greedy regex.{0,40}(accepted|current|use)"],
+    "contamination_checkpoints": {"9": {"forbidden_assertions": ["(use|accepted|current).{0,40}(greedy )?regex", "regex.{0,40}(accepted|current)"]}}
+  },
+  "execution_state": {
+    "checkpoints": [
+      {"step_index": 8, "expected_active_raw_step_keys": ["parser_prefix", "regex_branch"], "expected_revision_generation": 0},
+      {"step_index": 9, "expected_active_raw_step_keys": ["parser_prefix"], "expected_revision_generation": 1},
+      {"step_index": 13, "expected_active_raw_step_keys": ["parser_prefix", "csv_branch"], "expected_revision_generation": 1}
+    ],
+    "excluded_step_keys_at_final": ["regex_branch"],
+    "summary_assertions": [{"step_key": "summary_csv", "cover_step_keys": ["csv_branch"], "must_include": ["csv.reader", "quoted commas"]}],
+    "maintain_decisions": {"4": "pass", "8": "fail", "13": "pass"},
+    "node_generations": {"regex_branch": 0, "csv_branch": 1}
+  }
+}
