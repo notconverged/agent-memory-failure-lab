@@ -625,7 +625,7 @@ HANDOFF.md
 
 先给结论：**Graphiti、EA-Graph、MemoRepair、Dependency-Guided Rollback Repair、MAGE、Proactive Memory Agent 值得单独拿出来讲；GitHub Copilot Memory 和 remem 也应该进入核心比较集。** Claude-Mem、Basic Memory、Letta、Native Memory、AGENTS/Rules、ExecPlan 更适合作为不同层次的 baseline，而不是与你的核心设计同级的“直接竞品”。
 
-#### 2. GitHub Copilot Memory：**Citation + Verify-on-Read**
+####  GitHub Copilot Memory：**Citation + Verify-on-Read**
 
 GitHub 自己明确把核心问题表述为：**memory retrieval 并不是最困难的，困难的是 repository 在 branch 和时间上变化之后，memory 是否仍然 valid。** ([arXiv](https://arxiv.org/html/2605.06527v1?utm_source=chatgpt.com "STALE: Can LLM Agents Know When Their Memories Are ..."))它采取的路径不是持续清理整个 memory bank，而是 **Just-in-Time Verification，JIT Verification（即时/读时验证）**：
 
@@ -655,7 +655,7 @@ still supported?
 在 GitHub 的大规模环境里，持续 offline curation 会带来巨大的工程与模型调用成本，所以 JIT 很合理。但**个人用户 + 单 repo** 下，这个 trade-off 未必成立。这可以直接变成你的一个研究问题：
 > 在个人 Coding Agent 场景里，主动维护 `canonical current state`，是否比每次召回后重新验证成本更低、错误更少？
 
-#### 3. Graphiti：**Temporal Truth，而不是 Code Dependency**
+####  Graphiti：**Temporal Truth，而不是 Code Dependency**
 
 temporal fact + provenance + invalidation，Graphiti 的基本单元不是 document，而是 **temporal fact edge（时态事实边）**：
 
@@ -704,7 +704,7 @@ new evidence
 
 你可以直接借它三个概念：**validity interval、supersession history、provenance。** 不要直接照搬整个 graph ontology。
 
-#### 4. EA-Graph：目前与你的 Coding 场景最贴的一篇
+#### EA-Graph：目前与你的 Coding 场景最贴的一篇
 
 8 月 4 日的 **EA-Graph: Artifact-Anchored Verification Memory for Coding Agents under Upstream Drift**，直接研究的就是：
 
@@ -871,7 +871,7 @@ artifact changed
 
 **这个绝对值得单独拿出来。**
 
-#### 5. MemoRepair：你的 `dirty descendants` 最直接的理论竞品
+#### MemoRepair：你的 `dirty descendants` 最直接的理论竞品
 
 MemoRepair 不是普通 memory product，而是非常明确地研究：
 
@@ -956,7 +956,7 @@ invalidate
 
 > **在 coding trajectory 中如何低成本构造可靠的 influence provenance。**
 
-#### 6. Dependency-Guided Rollback：比 MemoRepair 又往后走了一步
+#### Dependency-Guided Rollback：比 MemoRepair 又往后走了一步
 
 这是 8 月 11 日刚出来的 **From Faulty Memories to Corrected Actions**。
 
@@ -1050,7 +1050,7 @@ B valid  ──→ C
 
 > `dirty descendants` 最终很可能不能只停留在 Memory → Memory graph，必须考虑 Memory → Action / Tool / Derived Memory。
 
-#### 7. MAGE：不是“长期事实 memory”，而是 Execution State
+#### MAGE：不是“长期事实 memory”，而是 Execution State
 
 这里还要澄清一个名字冲突。我这里说的是 June 2026 的**MAGE = Memory as Agent-Guided Exploration**,它非常重要，因为它挑战了整个：store → semantic retrieval范式。MAGE 认为长任务真正的问题是：
 
@@ -1141,7 +1141,7 @@ Active execution state
 
 **很可能根本不应该进入同一个 memory store/state model。**
 
-#### 8. Proactive Memory Agent：把 Memory Management 变成一个 Controller【这是控制记忆写入的时间】
+#### Proactive Memory Agent：把 Memory Management 变成一个 Controller【这是控制记忆写入的时间】
 
 PMA 的核心不是更好的 database，而是加一个独立 **Memory Agent（记忆控制 Agent）**。论文描述的 failure 是**Behavioral State Decay（行为状态衰减）**：任务还没结束，但 requirements、previous attempts、diagnosis、open subgoals 已经埋进很长 trajectory，导致行动 Agent 虽然“历史里有”，实际上行为上已经忘了。([arXiv](https://arxiv.org/abs/2607.08716?utm_source=chatgpt.com "Remember When It Matters: Proactive Memory Agent for Long-Horizon Agents"))
 
@@ -1217,7 +1217,7 @@ selective injection policy
 
 而 EA-Graph / MemoRepair 更偏 deterministic/structured mechanisms。
 
-#### 9. remem：目前和你“四层完整 lifecycle”最接近的工程系统之一
+#### remem：目前和你“四层完整 lifecycle”最接近的工程系统之一
 
 remem 值得比上一轮再提高一档，它有一个非常关键的概念**CurrentTruth（当前真值视图）**。它不是把“能搜索出来”视为“可以注入”缺乏：
 
@@ -1360,7 +1360,7 @@ proposed action
 
 即 **prospective retrieval（面向未来动作的召回）**。
 
-#### 12. 最终我建议你不要再用“一张竞品表”把所有东西压平
+#### 最终我建议你不要再用“一张竞品表”把所有东西压平
 
 你现在其实已经能形成一张更像研究地图的东西：
 
@@ -1437,17 +1437,8 @@ Basic Memory 现在比你原表里写的稍微成熟一点：它已经提供 `me
 
 Letta 的定位也应该保持清楚：它很强的是 **memory residency hierarchy（记忆驻留层级）**——block 可以常驻 system context、attach/detach/update/delete，archival memory 则按需搜索。它提供的是 stateful-agent primitives，而不是“什么时候某个 coding decision 已经失效”的 reconciliation policy。([Letta Docs](https://docs.letta.com/v1-sdk/concepts/stateful-agents/?utm_source=chatgpt.com "Introduction to Stateful Agents"))
 
-#### 13. 对你的产品定义，我现在会做一个重要收窄
-
-我不会再把你的核心创新描述成：
-
-> “做一个完整的四阶段 Coding Memory 系统。”
-
-因为四个阶段每一个都有人做，而且①③已经非常拥挤。
-
-更合理的是：
-
-> **用现有方法解决 ① capture 和 ③ retrieval，把主要研发/实验资源集中在 ② repository-coupled reconciliation，然后让④成为 canonical state 的派生视图。**
+## 产品定义
+**用现有方法解决 ① capture 和 ③ retrieval，把主要研发/实验资源集中在 ② repository-coupled reconciliation，然后让④成为 canonical state 的派生视图。**
 
 也就是：
 
@@ -1474,17 +1465,7 @@ canonical state
 借 ExecPlan / event-sourced projection
 ```
 
-而你的真正原创假设可以进一步写成：
-
-> **Repository changes should not merely make memories “old”; they should induce explicit validity transitions over project memory and, where dependency provenance exists, propagate dirtiness only to affected descendants.**
-
-中文就是：
-
 > **代码库变化不应该只让记忆变“旧”，而应该触发可解释的有效性状态迁移；若存在依赖溯源，则只沿真实依赖传播 dirty 状态，而不是简单删除、按时间衰减或全量重验证。**
-
-这就比“解决 stale memory”精确得多。
-
----
 
 而且我现在会给你的②再加一个非常重要的设计原则：
 
@@ -1505,15 +1486,10 @@ revalidate selectively
 这里同时吸收了：
 
 - Graphiti 的 **temporal validity**；
-    
 - EA-Graph 的 **artifact anchoring + unprovable**；
-    
 - MemoRepair 的 **cascade dependency**；
-    
-- Dependency-Guided Rollback 的 **independent support**；
-    
+- Dependncy-Guided Rollback 的 **independent support**；
 - GitHub Copilot 的 **current-repo verification**。
-    
 
 我认为这已经开始形成一个相当干净的、不是简单拼功能的技术主张了。
 
